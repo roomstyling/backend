@@ -1,5 +1,5 @@
 from fastapi import APIRouter, UploadFile, File, HTTPException
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, FileResponse
 import os
 import uuid
 from typing import List
@@ -158,3 +158,54 @@ async def generate_design(request: DesignRequest):
         raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"디자인 생성 실패: {str(e)}")
+
+
+@router.post("/generate-image")
+async def generate_interior_image(request: DesignRequest):
+    """인테리어 스타일이 적용된 이미지 생성"""
+    try:
+        file_path = os.path.join(UPLOAD_DIR, request.image_filename)
+
+        if not os.path.exists(file_path):
+            raise HTTPException(status_code=404, detail="이미지 파일을 찾을 수 없습니다.")
+
+        # 스타일 검증
+        style = next((s for s in STYLE_OPTIONS if s.id == request.style_id), None)
+        if not style:
+            raise HTTPException(status_code=400, detail="유효하지 않은 스타일 ID입니다.")
+
+        gemini = get_gemini_service()
+
+        # 인테리어 이미지 생성
+        generated_filename = await gemini.generate_interior_image(
+            file_path,
+            style.name,
+            style.description
+        )
+
+        if not generated_filename:
+            raise HTTPException(status_code=500, detail="이미지 생성에 실패했습니다.")
+
+        return JSONResponse(content={
+            "success": True,
+            "message": "인테리어 이미지가 성공적으로 생성되었습니다.",
+            "generated_image": generated_filename,
+            "original_image": request.image_filename,
+            "style": style.name
+        })
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"이미지 생성 실패: {str(e)}")
+
+
+@router.get("/images/{filename}")
+async def get_image(filename: str):
+    """생성된 이미지 파일 반환"""
+    file_path = os.path.join(UPLOAD_DIR, filename)
+
+    if not os.path.exists(file_path):
+        raise HTTPException(status_code=404, detail="이미지를 찾을 수 없습니다.")
+
+    return FileResponse(file_path)
