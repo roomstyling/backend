@@ -16,6 +16,11 @@
 - **Frontend**: HTML/CSS/JavaScript
 - **이미지 처리**: Pillow
 
+## 요구사항
+
+- **Python**: 3.11.9 (권장) 또는 3.8 이상
+- **Google Gemini API Key**
+
 ## 설치 및 실행
 
 ### 1. 의존성 설치

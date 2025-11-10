@@ -10,6 +10,10 @@ from .routes import design
 # 환경변수 로드
 load_dotenv()
 
+# 필요한 디렉토리 생성
+os.makedirs("static", exist_ok=True)
+os.makedirs("uploads", exist_ok=True)
+
 # FastAPI 앱 생성
 app = FastAPI(
     title="Interior Design API",
