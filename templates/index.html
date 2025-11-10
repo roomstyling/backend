@@ -1,0 +1,483 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI 인테리어 디자인 가이드</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 20px;
+            padding: 40px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+        }
+
+        h1 {
+            text-align: center;
+            color: #333;
+            margin-bottom: 10px;
+            font-size: 2.5em;
+        }
+
+        .subtitle {
+            text-align: center;
+            color: #666;
+            margin-bottom: 40px;
+            font-size: 1.1em;
+        }
+
+        .step {
+            margin-bottom: 30px;
+            padding: 20px;
+            background: #f8f9fa;
+            border-radius: 10px;
+            border-left: 4px solid #667eea;
+        }
+
+        .step-title {
+            font-size: 1.3em;
+            color: #333;
+            margin-bottom: 15px;
+            font-weight: 600;
+        }
+
+        .upload-area {
+            border: 3px dashed #ccc;
+            border-radius: 10px;
+            padding: 40px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .upload-area:hover {
+            border-color: #667eea;
+            background: #f0f4ff;
+        }
+
+        .upload-area.dragover {
+            border-color: #667eea;
+            background: #e8eeff;
+        }
+
+        input[type="file"] {
+            display: none;
+        }
+
+        .preview-image {
+            max-width: 100%;
+            max-height: 400px;
+            margin-top: 20px;
+            border-radius: 10px;
+            display: none;
+        }
+
+        .styles-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin-top: 15px;
+        }
+
+        .style-card {
+            padding: 20px;
+            border: 2px solid #e0e0e0;
+            border-radius: 10px;
+            cursor: pointer;
+            transition: all 0.3s;
+            text-align: center;
+        }
+
+        .style-card:hover {
+            border-color: #667eea;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.2);
+        }
+
+        .style-card.selected {
+            border-color: #667eea;
+            background: #f0f4ff;
+        }
+
+        .style-name {
+            font-weight: 600;
+            color: #333;
+            margin-bottom: 8px;
+        }
+
+        .style-desc {
+            font-size: 0.9em;
+            color: #666;
+        }
+
+        .btn {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 15px 40px;
+            font-size: 1.1em;
+            border-radius: 10px;
+            cursor: pointer;
+            transition: all 0.3s;
+            display: block;
+            margin: 30px auto;
+        }
+
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 20px rgba(102, 126, 234, 0.4);
+        }
+
+        .btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 40px;
+            display: none;
+        }
+
+        .spinner {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #667eea;
+            border-radius: 50%;
+            width: 50px;
+            height: 50px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 20px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .result {
+            display: none;
+            margin-top: 30px;
+            padding: 30px;
+            background: #f8f9fa;
+            border-radius: 10px;
+        }
+
+        .result h2 {
+            color: #333;
+            margin-bottom: 20px;
+        }
+
+        .result-section {
+            margin-bottom: 25px;
+        }
+
+        .result-section h3 {
+            color: #667eea;
+            margin-bottom: 10px;
+            font-size: 1.2em;
+        }
+
+        .result-list {
+            list-style: none;
+            padding-left: 0;
+        }
+
+        .result-list li {
+            padding: 10px;
+            margin-bottom: 8px;
+            background: white;
+            border-radius: 5px;
+            border-left: 3px solid #667eea;
+        }
+
+        .error {
+            background: #fee;
+            color: #c33;
+            padding: 15px;
+            border-radius: 10px;
+            margin-top: 20px;
+            display: none;
+        }
+
+        .success {
+            background: #efe;
+            color: #3c3;
+            padding: 15px;
+            border-radius: 10px;
+            margin-top: 20px;
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🏠 AI 인테리어 디자인 가이드</h1>
+        <p class="subtitle">원룸 사진을 업로드하고 원하는 스타일을 선택하면, AI가 맞춤 인테리어 가이드를 제공합니다</p>
+
+        <!-- Step 1: 이미지 업로드 -->
+        <div class="step">
+            <div class="step-title">📸 Step 1: 원룸 사진 업로드</div>
+            <div class="upload-area" id="uploadArea">
+                <p>클릭하거나 파일을 드래그하여 업로드하세요</p>
+                <p style="color: #999; margin-top: 10px; font-size: 0.9em;">JPG, PNG, WEBP 형식 지원</p>
+                <input type="file" id="fileInput" accept="image/*">
+            </div>
+            <img id="previewImage" class="preview-image" alt="미리보기">
+            <div class="success" id="uploadSuccess"></div>
+            <div class="error" id="uploadError"></div>
+        </div>
+
+        <!-- Step 2: 스타일 선택 -->
+        <div class="step">
+            <div class="step-title">🎨 Step 2: 원하는 인테리어 스타일 선택</div>
+            <div class="styles-grid" id="stylesGrid">
+                <!-- 스타일 카드가 동적으로 추가됩니다 -->
+            </div>
+        </div>
+
+        <!-- Step 3: 생성 버튼 -->
+        <button class="btn" id="generateBtn" disabled>✨ 인테리어 가이드 생성하기</button>
+
+        <!-- 로딩 -->
+        <div class="loading" id="loading">
+            <div class="spinner"></div>
+            <p>AI가 분석하고 있습니다... 잠시만 기다려주세요</p>
+        </div>
+
+        <!-- 결과 -->
+        <div class="result" id="result">
+            <h2>🎯 인테리어 디자인 가이드</h2>
+
+            <div class="result-section">
+                <h3>📊 현재 방 분석</h3>
+                <div id="analysisResult"></div>
+            </div>
+
+            <div class="result-section">
+                <h3>💡 추천사항</h3>
+                <ul class="result-list" id="recommendations"></ul>
+            </div>
+
+            <div class="result-section">
+                <h3>🏗️ 레이아웃 제안</h3>
+                <div id="layoutSuggestions"></div>
+            </div>
+
+            <div class="result-section">
+                <h3>🎨 색상 배치</h3>
+                <div id="colorScheme"></div>
+            </div>
+
+            <div class="result-section">
+                <h3>🪑 가구 제안</h3>
+                <ul class="result-list" id="furnitureSuggestions"></ul>
+            </div>
+        </div>
+
+        <div class="error" id="error"></div>
+    </div>
+
+    <script>
+        let uploadedFilename = null;
+        let selectedStyle = null;
+
+        // 페이지 로드 시 스타일 목록 가져오기
+        async function loadStyles() {
+            try {
+                const response = await fetch('/api/styles');
+                const styles = await response.json();
+
+                const grid = document.getElementById('stylesGrid');
+                grid.innerHTML = styles.map(style => `
+                    <div class="style-card" data-style-id="${style.id}">
+                        <div class="style-name">${style.name}</div>
+                        <div class="style-desc">${style.description}</div>
+                    </div>
+                `).join('');
+
+                // 스타일 카드 클릭 이벤트
+                document.querySelectorAll('.style-card').forEach(card => {
+                    card.addEventListener('click', () => {
+                        document.querySelectorAll('.style-card').forEach(c => c.classList.remove('selected'));
+                        card.classList.add('selected');
+                        selectedStyle = card.dataset.styleId;
+                        updateGenerateButton();
+                    });
+                });
+            } catch (error) {
+                showError('스타일 목록을 불러오는데 실패했습니다: ' + error.message);
+            }
+        }
+
+        // 파일 업로드
+        const uploadArea = document.getElementById('uploadArea');
+        const fileInput = document.getElementById('fileInput');
+        const previewImage = document.getElementById('previewImage');
+
+        uploadArea.addEventListener('click', () => fileInput.click());
+
+        uploadArea.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            uploadArea.classList.add('dragover');
+        });
+
+        uploadArea.addEventListener('dragleave', () => {
+            uploadArea.classList.remove('dragover');
+        });
+
+        uploadArea.addEventListener('drop', async (e) => {
+            e.preventDefault();
+            uploadArea.classList.remove('dragover');
+            const file = e.dataTransfer.files[0];
+            if (file) await uploadFile(file);
+        });
+
+        fileInput.addEventListener('change', async (e) => {
+            const file = e.target.files[0];
+            if (file) await uploadFile(file);
+        });
+
+        async function uploadFile(file) {
+            const formData = new FormData();
+            formData.append('file', file);
+
+            try {
+                // 미리보기 표시
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    previewImage.src = e.target.result;
+                    previewImage.style.display = 'block';
+                };
+                reader.readAsDataURL(file);
+
+                // 업로드
+                const response = await fetch('/api/upload', {
+                    method: 'POST',
+                    body: formData
+                });
+
+                const data = await response.json();
+
+                if (data.success) {
+                    uploadedFilename = data.filename;
+                    showSuccess('uploadSuccess', '이미지가 업로드되었습니다!');
+                    hideError('uploadError');
+                    updateGenerateButton();
+                } else {
+                    throw new Error(data.detail || '업로드 실패');
+                }
+            } catch (error) {
+                showError('uploadError', '파일 업로드 실패: ' + error.message);
+            }
+        }
+
+        // 생성 버튼 활성화 체크
+        function updateGenerateButton() {
+            const btn = document.getElementById('generateBtn');
+            btn.disabled = !(uploadedFilename && selectedStyle);
+        }
+
+        // 디자인 가이드 생성
+        document.getElementById('generateBtn').addEventListener('click', async () => {
+            const loading = document.getElementById('loading');
+            const result = document.getElementById('result');
+            const btn = document.getElementById('generateBtn');
+
+            try {
+                btn.disabled = true;
+                loading.style.display = 'block';
+                result.style.display = 'none';
+                hideError('error');
+
+                const response = await fetch('/api/design', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        image_filename: uploadedFilename,
+                        style_id: selectedStyle
+                    })
+                });
+
+                const data = await response.json();
+
+                if (data.success && data.guide) {
+                    displayResult(data.guide);
+                    result.style.display = 'block';
+                } else {
+                    throw new Error(data.detail || '생성 실패');
+                }
+            } catch (error) {
+                showError('error', '디자인 가이드 생성 실패: ' + error.message);
+            } finally {
+                loading.style.display = 'none';
+                btn.disabled = false;
+            }
+        });
+
+        // 결과 표시
+        function displayResult(guide) {
+            // 분석 결과
+            const analysis = guide.analysis;
+            document.getElementById('analysisResult').innerHTML = `
+                <p><strong>방 타입:</strong> ${analysis.room_type}</p>
+                <p><strong>크기:</strong> ${analysis.size_estimate}</p>
+                <p><strong>현재 레이아웃:</strong> ${analysis.current_layout}</p>
+                <p><strong>문제점:</strong> ${analysis.issues.join(', ')}</p>
+                <p><strong>장점:</strong> ${analysis.strengths.join(', ')}</p>
+            `;
+
+            // 추천사항
+            document.getElementById('recommendations').innerHTML =
+                guide.recommendations.map(rec => `<li>${rec}</li>`).join('');
+
+            // 레이아웃 제안
+            document.getElementById('layoutSuggestions').innerHTML = `<p>${guide.layout_suggestions}</p>`;
+
+            // 색상 배치
+            document.getElementById('colorScheme').innerHTML = `<p>${guide.color_scheme}</p>`;
+
+            // 가구 제안
+            document.getElementById('furnitureSuggestions').innerHTML =
+                guide.furniture_suggestions.map(furn => `<li>${furn}</li>`).join('');
+        }
+
+        // 에러/성공 메시지 표시
+        function showError(elementId, message) {
+            const el = document.getElementById(elementId);
+            el.textContent = message;
+            el.style.display = 'block';
+        }
+
+        function hideError(elementId) {
+            document.getElementById(elementId).style.display = 'none';
+        }
+
+        function showSuccess(elementId, message) {
+            const el = document.getElementById(elementId);
+            el.textContent = message;
+            el.style.display = 'block';
+        }
+
+        // 초기화
+        loadStyles();
+    </script>
+</body>
+</html>
