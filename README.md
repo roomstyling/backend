@@ -12,7 +12,7 @@
 ## 기술 스택
 
 - **Backend**: FastAPI
-- **AI**: Google Gemini API (gemini-1.5-flash)
+- **AI**: Google Gemini API (gemini-2.5-flash-image-preview)
 - **Frontend**: HTML/CSS/JavaScript
 - **이미지 처리**: Pillow
 

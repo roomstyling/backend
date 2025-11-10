@@ -15,7 +15,7 @@ class GeminiService:
             raise ValueError("GEMINI_API_KEY 환경변수가 설정되지 않았습니다.")
 
         genai.configure(api_key=api_key)
-        self.model = genai.GenerativeModel('gemini-1.5-flash')
+        self.model = genai.GenerativeModel('gemini-2.5-flash-image-preview')
 
     async def analyze_room(self, image_path: str) -> Dict[str, Any]:
         """원룸 사진 분석"""
