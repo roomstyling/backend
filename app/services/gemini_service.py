@@ -204,9 +204,6 @@ class GeminiService:
             if response.generated_images and len(response.generated_images) > 0:
                 generated_image = response.generated_images[0]
 
-                # 이미지를 PIL Image로 변환
-                pil_image = generated_image.image
-
                 # 파일로 저장
                 import uuid
                 BASE_DIR = Path(__file__).resolve().parent.parent.parent
@@ -216,7 +213,10 @@ class GeminiService:
                 filename = f"generated_{uuid.uuid4()}.png"
                 output_path = UPLOAD_DIR / filename
 
-                pil_image.save(str(output_path), format='PNG')
+                # generated_image.image는 이미 PIL Image 객체
+                # 파일 확장자(.png)로 포맷이 자동 인식됨
+                pil_image = generated_image.image
+                pil_image.save(str(output_path))
                 print(f"Image saved successfully to: {output_path}")
 
                 return filename
