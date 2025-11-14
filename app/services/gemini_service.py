@@ -5,6 +5,7 @@ from typing import Dict, Any, Optional
 import json
 import base64
 from io import BytesIO
+from pathlib import Path
 
 
 class GeminiService:
@@ -181,12 +182,16 @@ class GeminiService:
                             # base64 디코딩
                             image_bytes = base64.b64decode(image_data)
 
-                            # 이미지 저장
+                            # 이미지 저장 (절대 경로 사용)
                             import uuid
-                            filename = f"generated_{uuid.uuid4()}.png"
-                            output_path = os.path.join("uploads", filename)
+                            BASE_DIR = Path(__file__).resolve().parent.parent.parent
+                            UPLOAD_DIR = BASE_DIR / "uploads"
+                            UPLOAD_DIR.mkdir(exist_ok=True)
 
-                            with open(output_path, "wb") as f:
+                            filename = f"generated_{uuid.uuid4()}.png"
+                            output_path = UPLOAD_DIR / filename
+
+                            with open(str(output_path), "wb") as f:
                                 f.write(image_bytes)
 
                             return filename
