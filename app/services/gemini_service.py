@@ -167,20 +167,38 @@ class GeminiService:
 
             response = self.model.generate_content([prompt, img])
 
+            print(f"DEBUG: Response type: {type(response)}")
+            print(f"DEBUG: Has candidates: {hasattr(response, 'candidates')}")
+
             # 생성된 이미지 저장
             if hasattr(response, 'candidates') and response.candidates:
                 candidate = response.candidates[0]
+                print(f"DEBUG: Candidate type: {type(candidate)}")
+                print(f"DEBUG: Has content: {hasattr(candidate, 'content')}")
 
                 # 이미지 데이터 추출
                 if hasattr(candidate, 'content') and hasattr(candidate.content, 'parts'):
-                    for part in candidate.content.parts:
+                    print(f"DEBUG: Number of parts: {len(candidate.content.parts)}")
+
+                    for i, part in enumerate(candidate.content.parts):
+                        print(f"DEBUG: Part {i} type: {type(part)}")
+                        print(f"DEBUG: Part {i} has inline_data: {hasattr(part, 'inline_data')}")
+                        print(f"DEBUG: Part {i} has text: {hasattr(part, 'text')}")
+
                         # inline_data가 있는 경우 (이미지)
                         if hasattr(part, 'inline_data') and part.inline_data:
                             image_data = part.inline_data.data
                             mime_type = part.inline_data.mime_type
+                            print(f"DEBUG: Found image data, MIME type: {mime_type}")
+                            print(f"DEBUG: Image data length: {len(image_data)}")
 
                             # base64 디코딩
-                            image_bytes = base64.b64decode(image_data)
+                            try:
+                                image_bytes = base64.b64decode(image_data)
+                                print(f"DEBUG: Decoded image bytes length: {len(image_bytes)}")
+                            except Exception as decode_error:
+                                print(f"DEBUG: Base64 decode error: {decode_error}")
+                                raise
 
                             # 이미지 저장 (절대 경로 사용)
                             import uuid
@@ -190,11 +208,17 @@ class GeminiService:
 
                             filename = f"generated_{uuid.uuid4()}.png"
                             output_path = UPLOAD_DIR / filename
+                            print(f"DEBUG: Saving to: {output_path}")
 
                             with open(str(output_path), "wb") as f:
                                 f.write(image_bytes)
 
+                            print(f"DEBUG: File saved successfully")
                             return filename
+
+                        # 텍스트가 있는 경우
+                        if hasattr(part, 'text'):
+                            print(f"DEBUG: Part {i} text preview: {part.text[:200]}...")
 
                 # 텍스트 응답만 있는 경우
                 raise Exception("이미지가 생성되지 않았습니다. 모델이 텍스트만 반환했습니다.")
@@ -202,6 +226,7 @@ class GeminiService:
             raise Exception("이미지 생성 실패: 응답이 없습니다.")
 
         except Exception as e:
+            print(f"DEBUG: Exception occurred: {type(e).__name__}: {str(e)}")
             raise Exception(f"인테리어 이미지 생성 중 오류 발생: {str(e)}")
 
 
