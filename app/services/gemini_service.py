@@ -1,5 +1,7 @@
 import os
 import google.generativeai as genai
+from google import genai as imagen_genai
+from google.genai import types
 from PIL import Image
 from typing import Dict, Any, Optional
 import json
@@ -17,8 +19,12 @@ class GeminiService:
         if not api_key:
             raise ValueError("GEMINI_API_KEY 환경변수가 설정되지 않았습니다.")
 
+        # Gemini 모델 (텍스트/분석용)
         genai.configure(api_key=api_key)
         self.model = genai.GenerativeModel('gemini-2.5-flash-image-preview')
+
+        # Imagen 클라이언트 (이미지 생성용)
+        self.imagen_client = imagen_genai.Client(api_key=api_key)
 
     async def analyze_room(self, image_path: str) -> Dict[str, Any]:
         """원룸 사진 분석"""
@@ -140,93 +146,75 @@ class GeminiService:
         style: str,
         style_description: str
     ) -> Optional[str]:
-        """인테리어 스타일이 적용된 이미지 생성
+        """인테리어 스타일이 적용된 이미지 생성 (Imagen API 사용)
 
         Returns:
-            생성된 이미지의 파일 경로
+            생성된 이미지의 파일명
         """
         try:
+            # 1. 먼저 Gemini로 원본 이미지를 분석해서 상세한 프롬프트 생성
             img = Image.open(image_path)
 
-            # 이미지 생성 프롬프트
-            prompt = f"""
-            이 원룸 사진을 {style} 스타일로 인테리어 디자인을 적용한 이미지를 생성해주세요.
+            analysis_prompt = f"""
+            이 원룸 사진을 분석하고, {style} 스타일의 인테리어 이미지를 생성하기 위한
+            상세한 영문 프롬프트를 작성해주세요.
+
+            다음 정보를 포함해야 합니다:
+            - 방의 구조와 레이아웃
+            - 창문과 문의 위치
+            - 방의 크기와 비율
+            - {style} 스타일에 맞는 가구 배치
+            - {style} 스타일의 색상 팔레트
+            - 조명과 소품
 
             스타일 설명: {style_description}
 
-            요구사항:
-            1. 원본 방의 구조(창문, 문, 벽)는 유지
-            2. {style} 스타일에 맞는 가구 배치
-            3. {style} 스타일의 색상 팔레트 적용
-            4. 조명과 소품을 스타일에 맞게 추가
-            5. 현실적이고 실용적인 인테리어
-            6. 공간 활용도를 최대화
-
-            고품질의 사실적인 인테리어 렌더링 이미지를 생성해주세요.
+            프롬프트는 "A {style} style studio apartment interior with..." 형식으로 시작하고,
+            사실적이고 고품질의 인테리어 렌더링을 강조해주세요.
             """
 
-            response = self.model.generate_content([prompt, img])
+            analysis_response = self.model.generate_content([analysis_prompt, img])
+            detailed_prompt = analysis_response.text.strip()
 
-            print(f"DEBUG: Response type: {type(response)}")
-            print(f"DEBUG: Has candidates: {hasattr(response, 'candidates')}")
+            print(f"Generated prompt for Imagen: {detailed_prompt[:200]}...")
 
-            # 생성된 이미지 저장
-            if hasattr(response, 'candidates') and response.candidates:
-                candidate = response.candidates[0]
-                print(f"DEBUG: Candidate type: {type(candidate)}")
-                print(f"DEBUG: Has content: {hasattr(candidate, 'content')}")
+            # 2. Imagen API로 이미지 생성
+            response = self.imagen_client.models.generate_images(
+                model='imagen-3.0-generate-001',
+                prompt=detailed_prompt,
+                config=types.GenerateImagesConfig(
+                    number_of_images=1,
+                    aspect_ratio="1:1",
+                    safety_filter_level="block_some",
+                    person_generation="allow_adult",
+                )
+            )
 
-                # 이미지 데이터 추출
-                if hasattr(candidate, 'content') and hasattr(candidate.content, 'parts'):
-                    print(f"DEBUG: Number of parts: {len(candidate.content.parts)}")
+            # 3. 생성된 이미지 저장
+            if response.generated_images and len(response.generated_images) > 0:
+                generated_image = response.generated_images[0]
 
-                    for i, part in enumerate(candidate.content.parts):
-                        print(f"DEBUG: Part {i} type: {type(part)}")
-                        print(f"DEBUG: Part {i} has inline_data: {hasattr(part, 'inline_data')}")
-                        print(f"DEBUG: Part {i} has text: {hasattr(part, 'text')}")
+                # 이미지를 PIL Image로 변환
+                pil_image = generated_image.image
 
-                        # inline_data가 있는 경우 (이미지)
-                        if hasattr(part, 'inline_data') and part.inline_data:
-                            image_data = part.inline_data.data
-                            mime_type = part.inline_data.mime_type
-                            print(f"DEBUG: Found image data, MIME type: {mime_type}")
-                            print(f"DEBUG: Image data length: {len(image_data)}")
+                # 파일로 저장
+                import uuid
+                BASE_DIR = Path(__file__).resolve().parent.parent.parent
+                UPLOAD_DIR = BASE_DIR / "uploads"
+                UPLOAD_DIR.mkdir(exist_ok=True)
 
-                            # base64 디코딩
-                            try:
-                                image_bytes = base64.b64decode(image_data)
-                                print(f"DEBUG: Decoded image bytes length: {len(image_bytes)}")
-                            except Exception as decode_error:
-                                print(f"DEBUG: Base64 decode error: {decode_error}")
-                                raise
+                filename = f"generated_{uuid.uuid4()}.png"
+                output_path = UPLOAD_DIR / filename
 
-                            # 이미지 저장 (절대 경로 사용)
-                            import uuid
-                            BASE_DIR = Path(__file__).resolve().parent.parent.parent
-                            UPLOAD_DIR = BASE_DIR / "uploads"
-                            UPLOAD_DIR.mkdir(exist_ok=True)
+                pil_image.save(str(output_path), format='PNG')
+                print(f"Image saved successfully to: {output_path}")
 
-                            filename = f"generated_{uuid.uuid4()}.png"
-                            output_path = UPLOAD_DIR / filename
-                            print(f"DEBUG: Saving to: {output_path}")
-
-                            with open(str(output_path), "wb") as f:
-                                f.write(image_bytes)
-
-                            print(f"DEBUG: File saved successfully")
-                            return filename
-
-                        # 텍스트가 있는 경우
-                        if hasattr(part, 'text'):
-                            print(f"DEBUG: Part {i} text preview: {part.text[:200]}...")
-
-                # 텍스트 응답만 있는 경우
-                raise Exception("이미지가 생성되지 않았습니다. 모델이 텍스트만 반환했습니다.")
-
-            raise Exception("이미지 생성 실패: 응답이 없습니다.")
+                return filename
+            else:
+                raise Exception("Imagen API가 이미지를 생성하지 못했습니다.")
 
         except Exception as e:
-            print(f"DEBUG: Exception occurred: {type(e).__name__}: {str(e)}")
+            print(f"Error in generate_interior_image: {type(e).__name__}: {str(e)}")
             raise Exception(f"인테리어 이미지 생성 중 오류 발생: {str(e)}")
 
 
