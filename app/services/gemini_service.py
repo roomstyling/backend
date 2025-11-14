@@ -174,7 +174,20 @@ class GeminiService:
             """
 
             analysis_response = self.model.generate_content([analysis_prompt, img])
-            detailed_prompt = analysis_response.text.strip()
+
+            # 응답에서 텍스트 추출
+            detailed_prompt = ""
+            if hasattr(analysis_response, 'candidates') and analysis_response.candidates:
+                candidate = analysis_response.candidates[0]
+                if hasattr(candidate, 'content') and hasattr(candidate.content, 'parts'):
+                    for part in candidate.content.parts:
+                        if hasattr(part, 'text'):
+                            detailed_prompt += part.text
+
+            detailed_prompt = detailed_prompt.strip()
+
+            if not detailed_prompt:
+                raise Exception("Gemini가 프롬프트를 생성하지 못했습니다.")
 
             print(f"Generated prompt for Imagen: {detailed_prompt[:200]}...")
 
