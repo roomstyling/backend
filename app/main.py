@@ -4,15 +4,22 @@ from fastapi.templating import Jinja2Templates
 from fastapi.middleware.cors import CORSMiddleware
 from dotenv import load_dotenv
 import os
+from pathlib import Path
 
 from .routes import design
 
 # 환경변수 로드
 load_dotenv()
 
+# 프로젝트 루트 디렉토리 (backend 폴더)
+BASE_DIR = Path(__file__).resolve().parent.parent
+STATIC_DIR = BASE_DIR / "static"
+UPLOAD_DIR = BASE_DIR / "uploads"
+TEMPLATES_DIR = BASE_DIR / "templates"
+
 # 필요한 디렉토리 생성
-os.makedirs("static", exist_ok=True)
-os.makedirs("uploads", exist_ok=True)
+STATIC_DIR.mkdir(exist_ok=True)
+UPLOAD_DIR.mkdir(exist_ok=True)
 
 # FastAPI 앱 생성
 app = FastAPI(
@@ -31,8 +38,8 @@ app.add_middleware(
 )
 
 # 정적 파일 및 템플릿 설정
-app.mount("/static", StaticFiles(directory="static"), name="static")
-templates = Jinja2Templates(directory="templates")
+app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
+templates = Jinja2Templates(directory=str(TEMPLATES_DIR))
 
 # 라우터 등록
 app.include_router(design.router)

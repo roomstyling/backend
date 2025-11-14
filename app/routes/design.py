@@ -3,6 +3,7 @@ from fastapi.responses import JSONResponse, FileResponse
 import os
 import uuid
 from typing import List
+from pathlib import Path
 from ..models.schemas import (
     StyleOption,
     DesignRequest,
@@ -14,9 +15,10 @@ from ..services.gemini_service import get_gemini_service
 
 router = APIRouter(prefix="/api", tags=["design"])
 
-# 업로드 디렉토리
-UPLOAD_DIR = "uploads"
-os.makedirs(UPLOAD_DIR, exist_ok=True)
+# 업로드 디렉토리 (절대 경로)
+BASE_DIR = Path(__file__).resolve().parent.parent.parent
+UPLOAD_DIR = BASE_DIR / "uploads"
+UPLOAD_DIR.mkdir(exist_ok=True)
 
 # 미리 정의된 스타일 옵션
 STYLE_OPTIONS = [
@@ -70,10 +72,10 @@ async def upload_image(file: UploadFile = File(...)):
 
         # 고유한 파일명 생성
         unique_filename = f"{uuid.uuid4()}{file_ext}"
-        file_path = os.path.join(UPLOAD_DIR, unique_filename)
+        file_path = UPLOAD_DIR / unique_filename
 
         # 파일 저장
-        with open(file_path, "wb") as buffer:
+        with open(str(file_path), "wb") as buffer:
             content = await file.read()
             buffer.write(content)
 
@@ -93,13 +95,13 @@ async def upload_image(file: UploadFile = File(...)):
 async def analyze_room(image_filename: str):
     """원룸 사진 분석"""
     try:
-        file_path = os.path.join(UPLOAD_DIR, image_filename)
+        file_path = UPLOAD_DIR / image_filename
 
-        if not os.path.exists(file_path):
+        if not file_path.exists():
             raise HTTPException(status_code=404, detail="이미지 파일을 찾을 수 없습니다.")
 
         gemini = get_gemini_service()
-        analysis = await gemini.analyze_room(file_path)
+        analysis = await gemini.analyze_room(str(file_path))
 
         return JSONResponse(content={
             "success": True,
@@ -116,9 +118,9 @@ async def analyze_room(image_filename: str):
 async def generate_design(request: DesignRequest):
     """인테리어 디자인 가이드 생성"""
     try:
-        file_path = os.path.join(UPLOAD_DIR, request.image_filename)
+        file_path = UPLOAD_DIR / request.image_filename
 
-        if not os.path.exists(file_path):
+        if not file_path.exists():
             raise HTTPException(status_code=404, detail="이미지 파일을 찾을 수 없습니다.")
 
         # 스타일 검증
@@ -129,12 +131,12 @@ async def generate_design(request: DesignRequest):
         gemini = get_gemini_service()
 
         # 1. 방 분석
-        analysis_data = await gemini.analyze_room(file_path)
+        analysis_data = await gemini.analyze_room(str(file_path))
         analysis = RoomAnalysis(**analysis_data)
 
         # 2. 디자인 가이드 생성
         guide_data = await gemini.generate_design_guide(
-            file_path,
+            str(file_path),
             analysis_data,
             style.name
         )
@@ -164,9 +166,9 @@ async def generate_design(request: DesignRequest):
 async def generate_interior_image(request: DesignRequest):
     """인테리어 스타일이 적용된 이미지 생성"""
     try:
-        file_path = os.path.join(UPLOAD_DIR, request.image_filename)
+        file_path = UPLOAD_DIR / request.image_filename
 
-        if not os.path.exists(file_path):
+        if not file_path.exists():
             raise HTTPException(status_code=404, detail="이미지 파일을 찾을 수 없습니다.")
 
         # 스타일 검증
@@ -178,7 +180,7 @@ async def generate_interior_image(request: DesignRequest):
 
         # 인테리어 이미지 생성
         generated_filename = await gemini.generate_interior_image(
-            file_path,
+            str(file_path),
             style.name,
             style.description
         )
@@ -203,9 +205,9 @@ async def generate_interior_image(request: DesignRequest):
 @router.get("/images/{filename}")
 async def get_image(filename: str):
     """생성된 이미지 파일 반환"""
-    file_path = os.path.join(UPLOAD_DIR, filename)
+    file_path = UPLOAD_DIR / filename
 
-    if not os.path.exists(file_path):
+    if not file_path.exists():
         raise HTTPException(status_code=404, detail="이미지를 찾을 수 없습니다.")
 
-    return FileResponse(file_path)
+    return FileResponse(str(file_path))
