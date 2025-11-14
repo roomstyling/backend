@@ -193,13 +193,10 @@ class GeminiService:
 
             # 2. Imagen API로 이미지 생성
             response = self.imagen_client.models.generate_images(
-                model='imagen-3.0-generate-001',
+                model='imagen-4.0-generate-001',
                 prompt=detailed_prompt,
                 config=types.GenerateImagesConfig(
                     number_of_images=1,
-                    aspect_ratio="1:1",
-                    safety_filter_level="block_some",
-                    person_generation="allow_adult",
                 )
             )
 
