@@ -155,22 +155,38 @@ class GeminiService:
             # 원본 이미지 로드
             original_image = Image.open(image_path)
 
-            # 이미지 편집 프롬프트
+            # 이미지 편집 프롬프트 (인테리어 전문가 관점)
             prompt = f"""
-            Transform this room into a {style} style interior design.
+You are a professional interior designer with 15+ years of experience in {style} style design.
 
-            Style description: {style_description}
+TASK: Analyze this room's existing structure and transform it into a beautiful {style} style interior.
 
-            Requirements:
-            - Keep the room structure (windows, doors, walls) but redesign the interior
-            - Apply {style} style furniture arrangement
-            - Use {style} style color palette
-            - Add appropriate lighting and decorative items
-            - Make it realistic and practical
-            - Maximize space utilization
-            - Create a high-quality, photorealistic interior rendering
+ANALYSIS PHASE:
+1. Study the current room layout, dimensions, and architectural features
+2. Identify window positions, door locations, ceiling height, and wall space
+3. Assess the natural lighting and spatial flow
+4. Note any structural elements that must be preserved
 
-            Make it look professional and inviting while maintaining the original room layout.
+DESIGN PHASE - Apply {style} style:
+Style Description: {style_description}
+
+Key Design Elements for {style}:
+- FURNITURE: Select and arrange furniture that embodies {style} aesthetics. Choose pieces that fit the room's proportions and maximize functionality.
+- COLOR PALETTE: Apply authentic {style} color schemes. Use primary colors for walls, secondary colors for larger furniture, and accent colors for decorative elements.
+- MATERIALS & TEXTURES: Incorporate signature {style} materials (wood types, fabrics, metals, finishes).
+- LIGHTING: Design a layered lighting scheme with ambient, task, and accent lighting appropriate for {style}.
+- SPATIAL PLANNING: Optimize traffic flow and create functional zones while maintaining the {style} principle of space utilization.
+- DECORATIVE ELEMENTS: Add {style}-appropriate artwork, plants, textiles, and accessories.
+
+EXECUTION REQUIREMENTS:
+✓ PRESERVE: Room structure (walls, windows, doors, ceiling, floor plan)
+✓ REPLACE: All furniture, lighting fixtures, wall colors, flooring materials, window treatments
+✓ ADD: Decorative elements, artwork, plants, rugs, curtains, accessories that enhance the {style} aesthetic
+✓ QUALITY: Create a photorealistic, magazine-worthy interior rendering
+✓ BALANCE: Ensure the design is both beautiful and practical for daily living
+✓ AUTHENTICITY: Stay true to {style} design principles and avoid mixing incompatible styles
+
+Create a stunning, professionally designed {style} interior that feels lived-in, inviting, and sophisticated.
             """
 
             print(f"Generating image with prompt: {prompt[:150]}...")
