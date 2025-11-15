@@ -158,90 +158,99 @@ class GeminiService:
             # 원본 이미지 로드
             original_image = Image.open(image_path)
 
-            # 이미지 편집 프롬프트 (보수적 접근, 구조 보존 강조)
+            # 스타일별 상세 가이드라인
+            style_guides = {
+                "미니멀리스트": """
+                - COLOR: Pure white walls, neutral tones (white, beige, light gray)
+                - FURNITURE: Simple geometric forms, clean lines, minimal pieces
+                - MATERIALS: Natural wood, smooth surfaces, matte finishes
+                - DECOR: Almost no decorations, one simple artwork maximum
+                - LIGHTING: Recessed lights, simple pendant lamps
+                - FLOORING: Light wood or polished concrete
+                - RULE: Less is more - remove clutter, keep only essentials
+                """,
+                "스칸디나비안": """
+                - COLOR: White walls, soft pastels (light blue, pale pink, cream)
+                - FURNITURE: Light wood (birch, ash), simple Nordic designs
+                - MATERIALS: Natural textiles (linen, cotton, wool), untreated wood
+                - DECOR: Indoor plants, woven baskets, hygge elements, cozy textiles
+                - LIGHTING: Multiple warm light sources, pendant lamps, candles
+                - FLOORING: Light blonde wood planks
+                - RULE: Functional, cozy, natural light emphasis
+                """,
+                "모던": """
+                - COLOR: Neutral palette (black, white, gray) with one accent color
+                - FURNITURE: Sleek contemporary designs, metallic accents, glass
+                - MATERIALS: Polished surfaces, chrome, glass, lacquer
+                - DECOR: Abstract art, geometric patterns, minimal accessories
+                - LIGHTING: Track lighting, modern LED fixtures, statement pieces
+                - FLOORING: Large format tiles or dark hardwood
+                - RULE: Clean, sophisticated, current trends
+                """,
+                "빈티지": """
+                - COLOR: Warm earth tones (terracotta, sage green, dusty pink, cream)
+                - FURNITURE: Antique or vintage-inspired pieces, ornate details
+                - MATERIALS: Aged wood, brass, velvet, lace, floral patterns
+                - DECOR: Vintage frames, old books, dried flowers, retro items
+                - LIGHTING: Vintage chandeliers, Edison bulbs, brass lamps
+                - FLOORING: Distressed hardwood or patterned tiles
+                - RULE: Nostalgic, romantic, lived-in character
+                """,
+                "인더스트리얼": """
+                - COLOR: Raw (exposed brick, concrete gray, black, rust)
+                - FURNITURE: Metal frames, reclaimed wood, utilitarian designs
+                - MATERIALS: Exposed brick, concrete, metal pipes, steel, leather
+                - DECOR: Edison bulbs, metal signs, industrial clocks, exposed hardware
+                - LIGHTING: Cage lights, metal pendants, exposed filament bulbs
+                - FLOORING: Concrete or reclaimed wood
+                - RULE: Raw, unfinished, urban warehouse aesthetic
+                """
+            }
+
+            style_guide = style_guides.get(style, "Follow the style description provided.")
+
+            # 이미지 생성 강제 프롬프트
             prompt = f"""
-You are a professional interior designer with 15+ years of experience in {style} style design.
+CRITICAL: You MUST generate an edited image. Do not just provide text analysis.
 
-CRITICAL CONSTRAINT: This is a SUBTLE RENOVATION, not a complete rebuild. Keep the room's existing structure and layout EXACTLY as is.
+You are a professional interior designer specializing in {style} style.
 
-TASK: Analyze this room and apply MINIMAL {style} style changes while preserving the existing layout.
+TASK: Transform this room image to {style} style. Keep the same room structure but apply {style} styling.
 
-STEP 1 - ANALYSIS (한국어로 설명해주세요):
-Analyze and document in Korean:
-- 현재 방의 치수와 레이아웃
-- 창문과 문의 정확한 위치 및 크기
-- 기존 가구 배치 및 종류
-- 현재 색상 구성 및 재질
-- 자연 채광 상태
-- 이 공간에서 이미 잘 작동하고 있는 요소들
+{style} STYLE GUIDELINES:
+{style_guide}
 
-STEP 2 - {style} STYLE APPLICATION (한국어로 변경 내용을 설명해주세요):
-스타일 설명: {style_description}
+Style Description: {style_description}
 
-Apply these conservative changes:
+PRESERVATION (DO NOT CHANGE):
+- Room dimensions and walls
+- Window and door positions/sizes
+- Overall furniture layout
 
-1. WALL COLORS: Change wall paint to {style}-appropriate colors
-   → 한국어로 설명: 어떤 색으로 바꾸고 왜 그 색을 선택했는지
+APPLY {style} STYLE:
+1. Wall colors → {style} palette
+2. Furniture materials/finishes → {style} aesthetics
+3. Add new furniture if needed (specify in Korean what you added and where)
+4. Soft furnishings (curtains, rugs, bedding) → {style} patterns
+5. Lighting fixtures → {style} designs
+6. Decorative items → {style} accessories
+7. Flooring → {style} materials
 
-2. FURNITURE UPDATES:
-   - Keep existing furniture but update materials/finishes to match {style}
-   - Update upholstery colors/patterns to {style} palette
-   - **ADD new furniture pieces** if they enhance functionality and {style} aesthetic
-   → 한국어로 설명:
-     * 기존 가구를 어떻게 스타일링했는지
-     * **추가한 가구가 있다면 구체적으로 명시** (예: "침대 옆에 원목 사이드 테이블 추가", "창가에 독서용 안락의자 추가")
-     * 추가한 이유와 위치
+STRICT ADHERENCE TO {style} STYLE:
+- Follow ALL guidelines above for {style}
+- Do NOT mix with other styles
+- Every element must match {style} aesthetic perfectly
 
-3. SOFT FURNISHINGS: Update curtains, rugs, cushions, bedding to {style}
-   → 한국어로 설명: 어떤 패턴/소재를 선택했는지
+OUTPUT REQUIRED:
+1. First: Brief Korean explanation (한국어로):
+   - 현재 상태 관찰
+   - {style} 스타일 변경 내용
+   - 추가한 가구 (구체적으로 명시: 예: "침대 옆에 {style} 스타일 사이드 테이블 추가")
 
-4. LIGHTING FIXTURES: Replace light fixtures with {style}-appropriate designs (keep positions)
-   → 한국어로 설명: 어떤 조명으로 바꿨는지
-
-5. DECORATIVE ACCENTS: Add {style} artwork, plants, and small decorative items
-   → 한국어로 설명: 어떤 소품을 어디에 추가했는지
-
-6. FLOORING: Update flooring material to match {style} (wood/tile style)
-   → 한국어로 설명: 어떤 바닥재로 변경했는지
-
-STRICT PRESERVATION RULES - DO NOT CHANGE:
-❌ Room dimensions or walls
-❌ Window sizes or positions
-❌ Door sizes or positions
-❌ Ceiling height or structure
-❌ Major architectural features
-
-EXECUTION REQUIREMENTS:
-✓ The "before" and "after" should have the SAME room layout
-✓ Someone should immediately recognize this as the same room
-✓ Changes should feel realistic and achievable with normal renovation
-✓ Focus on surface-level styling: colors, materials, decorations
-✓ **New furniture additions should be practical and enhance the space**
-✓ Create a photorealistic result
-✓ The transformation should look professional but CONSERVATIVE
-
-RESPONSE FORMAT (매우 중요!):
-**반드시 한국어로 답변해주세요.**
-
-다음 형식으로 설명:
-
-## 현재 상태 분석
-[방 상태를 관찰한 내용]
-
-## {style} 스타일 적용 계획
-[변경할 내용들]
-
-## 구체적인 변경 사항
-1. 벽면 색상: [설명]
-2. 가구 스타일링: [기존 가구 변경 + **추가된 가구 명시**]
-3. 패브릭 및 소품: [설명]
-4. 조명: [설명]
-5. 바닥재: [설명]
-
-## 디자인 의도
-[왜 이렇게 변경했는지, {style} 스타일을 어떻게 구현했는지]
-
-Then, generate the transformed image showing these changes.
+2. Second: GENERATE THE TRANSFORMED IMAGE showing {style} style applied
+   - This is MANDATORY - you must produce an edited image
+   - Apply all {style} guidelines strictly
+   - Keep the same room layout
             """
 
             print(f"Generating image with prompt: {prompt[:150]}...")
