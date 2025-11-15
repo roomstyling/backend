@@ -152,29 +152,33 @@ class GeminiService:
             생성된 이미지의 파일명
         """
         try:
-            # 이미지 생성 프롬프트
+            # 원본 이미지 로드
+            original_image = Image.open(image_path)
+
+            # 이미지 편집 프롬프트
             prompt = f"""
-            Create a {style} style interior design image for a studio apartment.
+            Transform this room into a {style} style interior design.
 
             Style description: {style_description}
 
             Requirements:
-            - {style} style furniture arrangement
-            - {style} style color palette
-            - Appropriate lighting and decorative items
-            - Realistic and practical interior design
+            - Keep the room structure (windows, doors, walls) but redesign the interior
+            - Apply {style} style furniture arrangement
+            - Use {style} style color palette
+            - Add appropriate lighting and decorative items
+            - Make it realistic and practical
             - Maximize space utilization
-            - High-quality, photorealistic interior rendering
+            - Create a high-quality, photorealistic interior rendering
 
-            Make it look professional and inviting.
+            Make it look professional and inviting while maintaining the original room layout.
             """
 
             print(f"Generating image with prompt: {prompt[:150]}...")
 
-            # Gemini 2.5 Flash Image로 이미지 생성
+            # Gemini 2.5 Flash Image로 이미지 편집
             response = self.client.models.generate_content(
                 model="gemini-2.5-flash-image",
-                contents=[prompt],
+                contents=[prompt, original_image],
             )
 
             # 응답에서 이미지 데이터 추출 및 저장
