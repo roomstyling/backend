@@ -278,6 +278,12 @@
             <div style="text-align: center; margin-top: 20px; padding: 15px; background: #f0f4ff; border-radius: 10px;">
                 <p id="styleInfo" style="font-size: 1.1em; color: #333;"></p>
             </div>
+
+            <!-- 디자이너 분석 내용 -->
+            <div id="analysisSection" style="margin-top: 30px; padding: 25px; background: white; border-radius: 10px; border-left: 4px solid #667eea; display: none;">
+                <h3 style="color: #667eea; margin-bottom: 15px;">💡 디자이너 분석 및 변경 내용</h3>
+                <div id="analysisText" style="white-space: pre-wrap; line-height: 1.8; color: #555; font-size: 0.95em;"></div>
+            </div>
         </div>
 
         <div class="error" id="error"></div>
@@ -432,6 +438,14 @@
 
             // 스타일 정보
             document.getElementById('styleInfo').textContent = `${data.style} 스타일로 인테리어가 적용되었습니다!`;
+
+            // 디자이너 분석 내용 표시
+            if (data.analysis && data.analysis.trim()) {
+                const analysisSection = document.getElementById('analysisSection');
+                const analysisText = document.getElementById('analysisText');
+                analysisText.textContent = data.analysis;
+                analysisSection.style.display = 'block';
+            }
         }
 
         // 에러/성공 메시지 표시

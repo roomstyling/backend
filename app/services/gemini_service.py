@@ -145,48 +145,73 @@ class GeminiService:
         image_path: str,
         style: str,
         style_description: str
-    ) -> Optional[str]:
+    ) -> dict:
         """인테리어 스타일이 적용된 이미지 생성 (Gemini 2.5 Flash Image 사용)
 
         Returns:
-            생성된 이미지의 파일명
+            dict: {
+                'filename': 생성된 이미지 파일명,
+                'analysis': 분석 및 변경 내용 텍스트
+            }
         """
         try:
             # 원본 이미지 로드
             original_image = Image.open(image_path)
 
-            # 이미지 편집 프롬프트 (인테리어 전문가 관점)
+            # 이미지 편집 프롬프트 (보수적 접근, 구조 보존 강조)
             prompt = f"""
 You are a professional interior designer with 15+ years of experience in {style} style design.
 
-TASK: Analyze this room's existing structure and transform it into a beautiful {style} style interior.
+CRITICAL CONSTRAINT: This is a SUBTLE RENOVATION, not a complete rebuild. Keep the room's existing structure and layout EXACTLY as is.
 
-ANALYSIS PHASE:
-1. Study the current room layout, dimensions, and architectural features
-2. Identify window positions, door locations, ceiling height, and wall space
-3. Assess the natural lighting and spatial flow
-4. Note any structural elements that must be preserved
+TASK: Analyze this room and apply MINIMAL {style} style changes while preserving the existing layout.
 
-DESIGN PHASE - Apply {style} style:
+STEP 1 - ANALYSIS (Please describe in your response):
+Analyze and document:
+- Current room dimensions and layout
+- Exact window positions, door locations, and their sizes
+- Existing furniture placement and types
+- Current color scheme and materials
+- Natural lighting conditions
+- What's already working well in this space
+
+STEP 2 - {style} STYLE APPLICATION (Please describe your changes):
 Style Description: {style_description}
 
-Key Design Elements for {style}:
-- FURNITURE: Select and arrange furniture that embodies {style} aesthetics. Choose pieces that fit the room's proportions and maximize functionality.
-- COLOR PALETTE: Apply authentic {style} color schemes. Use primary colors for walls, secondary colors for larger furniture, and accent colors for decorative elements.
-- MATERIALS & TEXTURES: Incorporate signature {style} materials (wood types, fabrics, metals, finishes).
-- LIGHTING: Design a layered lighting scheme with ambient, task, and accent lighting appropriate for {style}.
-- SPATIAL PLANNING: Optimize traffic flow and create functional zones while maintaining the {style} principle of space utilization.
-- DECORATIVE ELEMENTS: Add {style}-appropriate artwork, plants, textiles, and accessories.
+Apply ONLY these conservative changes:
+1. WALL COLORS: Change wall paint to {style}-appropriate colors
+2. FURNITURE STYLING: Keep existing furniture POSITIONS, but change:
+   - Furniture materials/finishes to match {style}
+   - Upholstery colors/patterns to {style} palette
+3. SOFT FURNISHINGS: Update curtains, rugs, cushions, bedding to {style}
+4. LIGHTING FIXTURES: Replace light fixtures with {style}-appropriate designs (keep positions)
+5. DECORATIVE ACCENTS: Add {style} artwork, plants, and small decorative items
+6. FLOORING: Update flooring material to match {style} (wood/tile style)
+
+STRICT PRESERVATION RULES - DO NOT CHANGE:
+❌ Room dimensions or walls
+❌ Window sizes or positions
+❌ Door sizes or positions
+❌ Ceiling height or structure
+❌ Overall furniture layout (bed, desk, shelf positions)
+❌ Major architectural features
 
 EXECUTION REQUIREMENTS:
-✓ PRESERVE: Room structure (walls, windows, doors, ceiling, floor plan)
-✓ REPLACE: All furniture, lighting fixtures, wall colors, flooring materials, window treatments
-✓ ADD: Decorative elements, artwork, plants, rugs, curtains, accessories that enhance the {style} aesthetic
-✓ QUALITY: Create a photorealistic, magazine-worthy interior rendering
-✓ BALANCE: Ensure the design is both beautiful and practical for daily living
-✓ AUTHENTICITY: Stay true to {style} design principles and avoid mixing incompatible styles
+✓ The "before" and "after" should have the SAME room layout
+✓ Someone should immediately recognize this as the same room
+✓ Changes should feel realistic and achievable with normal renovation
+✓ Focus on surface-level styling: colors, materials, decorations
+✓ Create a photorealistic result
+✓ The transformation should look professional but CONSERVATIVE
 
-Create a stunning, professionally designed {style} interior that feels lived-in, inviting, and sophisticated.
+RESPONSE FORMAT:
+First, provide your analysis and design decisions in text.
+Then, generate the transformed image.
+
+Explain:
+- What you observed about the current room
+- Specific changes you're making and why
+- How these changes achieve the {style} aesthetic while respecting the existing structure
             """
 
             print(f"Generating image with prompt: {prompt[:150]}...")
@@ -209,8 +234,9 @@ Create a stunning, professionally designed {style} interior that feels lived-in,
             filename = f"generated_{uuid.uuid4()}.png"
             output_path = UPLOAD_DIR / filename
 
-            # parts를 순회하며 이미지 데이터 찾기
+            # parts를 순회하며 텍스트와 이미지 데이터 추출
             image_found = False
+            analysis_text = ""
 
             # 응답 구조 확인
             if hasattr(response, 'parts'):
@@ -231,6 +257,8 @@ Create a stunning, professionally designed {style} interior that feels lived-in,
 
             for part in parts:
                 if hasattr(part, 'text') and part.text is not None:
+                    # 텍스트 분석 내용 수집
+                    analysis_text += part.text
                     print(f"Response text: {part.text[:200]}...")
                 elif hasattr(part, 'inline_data') and part.inline_data is not None:
                     # 이미지 데이터 발견
@@ -270,7 +298,10 @@ Create a stunning, professionally designed {style} interior that feels lived-in,
             if not image_found:
                 raise Exception("Gemini가 이미지를 생성하지 못했습니다. 텍스트 응답만 반환되었습니다.")
 
-            return filename
+            return {
+                'filename': filename,
+                'analysis': analysis_text.strip() if analysis_text else "분석 내용이 생성되지 않았습니다."
+            }
 
         except Exception as e:
             print(f"Error in generate_interior_image: {type(e).__name__}: {str(e)}")
