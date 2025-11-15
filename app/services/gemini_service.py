@@ -166,34 +166,49 @@ CRITICAL CONSTRAINT: This is a SUBTLE RENOVATION, not a complete rebuild. Keep t
 
 TASK: Analyze this room and apply MINIMAL {style} style changes while preserving the existing layout.
 
-STEP 1 - ANALYSIS (Please describe in your response):
-Analyze and document:
-- Current room dimensions and layout
-- Exact window positions, door locations, and their sizes
-- Existing furniture placement and types
-- Current color scheme and materials
-- Natural lighting conditions
-- What's already working well in this space
+STEP 1 - ANALYSIS (한국어로 설명해주세요):
+Analyze and document in Korean:
+- 현재 방의 치수와 레이아웃
+- 창문과 문의 정확한 위치 및 크기
+- 기존 가구 배치 및 종류
+- 현재 색상 구성 및 재질
+- 자연 채광 상태
+- 이 공간에서 이미 잘 작동하고 있는 요소들
 
-STEP 2 - {style} STYLE APPLICATION (Please describe your changes):
-Style Description: {style_description}
+STEP 2 - {style} STYLE APPLICATION (한국어로 변경 내용을 설명해주세요):
+스타일 설명: {style_description}
 
-Apply ONLY these conservative changes:
+Apply these conservative changes:
+
 1. WALL COLORS: Change wall paint to {style}-appropriate colors
-2. FURNITURE STYLING: Keep existing furniture POSITIONS, but change:
-   - Furniture materials/finishes to match {style}
-   - Upholstery colors/patterns to {style} palette
+   → 한국어로 설명: 어떤 색으로 바꾸고 왜 그 색을 선택했는지
+
+2. FURNITURE UPDATES:
+   - Keep existing furniture but update materials/finishes to match {style}
+   - Update upholstery colors/patterns to {style} palette
+   - **ADD new furniture pieces** if they enhance functionality and {style} aesthetic
+   → 한국어로 설명:
+     * 기존 가구를 어떻게 스타일링했는지
+     * **추가한 가구가 있다면 구체적으로 명시** (예: "침대 옆에 원목 사이드 테이블 추가", "창가에 독서용 안락의자 추가")
+     * 추가한 이유와 위치
+
 3. SOFT FURNISHINGS: Update curtains, rugs, cushions, bedding to {style}
+   → 한국어로 설명: 어떤 패턴/소재를 선택했는지
+
 4. LIGHTING FIXTURES: Replace light fixtures with {style}-appropriate designs (keep positions)
+   → 한국어로 설명: 어떤 조명으로 바꿨는지
+
 5. DECORATIVE ACCENTS: Add {style} artwork, plants, and small decorative items
+   → 한국어로 설명: 어떤 소품을 어디에 추가했는지
+
 6. FLOORING: Update flooring material to match {style} (wood/tile style)
+   → 한국어로 설명: 어떤 바닥재로 변경했는지
 
 STRICT PRESERVATION RULES - DO NOT CHANGE:
 ❌ Room dimensions or walls
 ❌ Window sizes or positions
 ❌ Door sizes or positions
 ❌ Ceiling height or structure
-❌ Overall furniture layout (bed, desk, shelf positions)
 ❌ Major architectural features
 
 EXECUTION REQUIREMENTS:
@@ -201,17 +216,32 @@ EXECUTION REQUIREMENTS:
 ✓ Someone should immediately recognize this as the same room
 ✓ Changes should feel realistic and achievable with normal renovation
 ✓ Focus on surface-level styling: colors, materials, decorations
+✓ **New furniture additions should be practical and enhance the space**
 ✓ Create a photorealistic result
 ✓ The transformation should look professional but CONSERVATIVE
 
-RESPONSE FORMAT:
-First, provide your analysis and design decisions in text.
-Then, generate the transformed image.
+RESPONSE FORMAT (매우 중요!):
+**반드시 한국어로 답변해주세요.**
 
-Explain:
-- What you observed about the current room
-- Specific changes you're making and why
-- How these changes achieve the {style} aesthetic while respecting the existing structure
+다음 형식으로 설명:
+
+## 현재 상태 분석
+[방 상태를 관찰한 내용]
+
+## {style} 스타일 적용 계획
+[변경할 내용들]
+
+## 구체적인 변경 사항
+1. 벽면 색상: [설명]
+2. 가구 스타일링: [기존 가구 변경 + **추가된 가구 명시**]
+3. 패브릭 및 소품: [설명]
+4. 조명: [설명]
+5. 바닥재: [설명]
+
+## 디자인 의도
+[왜 이렇게 변경했는지, {style} 스타일을 어떻게 구현했는지]
+
+Then, generate the transformed image showing these changes.
             """
 
             print(f"Generating image with prompt: {prompt[:150]}...")
