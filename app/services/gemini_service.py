@@ -158,99 +158,73 @@ class GeminiService:
             # 원본 이미지 로드
             original_image = Image.open(image_path)
 
-            # 스타일별 상세 가이드라인
-            style_guides = {
-                "미니멀리스트": """
-                - COLOR: Pure white walls, neutral tones (white, beige, light gray)
-                - FURNITURE: Simple geometric forms, clean lines, minimal pieces
-                - MATERIALS: Natural wood, smooth surfaces, matte finishes
-                - DECOR: Almost no decorations, one simple artwork maximum
-                - LIGHTING: Recessed lights, simple pendant lamps
-                - FLOORING: Light wood or polished concrete
-                - RULE: Less is more - remove clutter, keep only essentials
-                """,
-                "스칸디나비안": """
-                - COLOR: White walls, soft pastels (light blue, pale pink, cream)
-                - FURNITURE: Light wood (birch, ash), simple Nordic designs
-                - MATERIALS: Natural textiles (linen, cotton, wool), untreated wood
-                - DECOR: Indoor plants, woven baskets, hygge elements, cozy textiles
-                - LIGHTING: Multiple warm light sources, pendant lamps, candles
-                - FLOORING: Light blonde wood planks
-                - RULE: Functional, cozy, natural light emphasis
-                """,
-                "모던": """
-                - COLOR: Neutral palette (black, white, gray) with one accent color
-                - FURNITURE: Sleek contemporary designs, metallic accents, glass
-                - MATERIALS: Polished surfaces, chrome, glass, lacquer
-                - DECOR: Abstract art, geometric patterns, minimal accessories
-                - LIGHTING: Track lighting, modern LED fixtures, statement pieces
-                - FLOORING: Large format tiles or dark hardwood
-                - RULE: Clean, sophisticated, current trends
-                """,
-                "빈티지": """
-                - COLOR: Warm earth tones (terracotta, sage green, dusty pink, cream)
-                - FURNITURE: Antique or vintage-inspired pieces, ornate details
-                - MATERIALS: Aged wood, brass, velvet, lace, floral patterns
-                - DECOR: Vintage frames, old books, dried flowers, retro items
-                - LIGHTING: Vintage chandeliers, Edison bulbs, brass lamps
-                - FLOORING: Distressed hardwood or patterned tiles
-                - RULE: Nostalgic, romantic, lived-in character
-                """,
-                "인더스트리얼": """
-                - COLOR: Raw (exposed brick, concrete gray, black, rust)
-                - FURNITURE: Metal frames, reclaimed wood, utilitarian designs
-                - MATERIALS: Exposed brick, concrete, metal pipes, steel, leather
-                - DECOR: Edison bulbs, metal signs, industrial clocks, exposed hardware
-                - LIGHTING: Cage lights, metal pendants, exposed filament bulbs
-                - FLOORING: Concrete or reclaimed wood
-                - RULE: Raw, unfinished, urban warehouse aesthetic
-                """
+            # 스타일별 핵심 원칙 (참고용, 강제 아님)
+            style_principles = {
+                "미니멀리스트": "심플함, 필수 요소만, 여백 강조, 깔끔한 라인",
+                "스칸디나비안": "밝은 원목, 자연스러움, 아늑함, 따뜻한 조명, 식물",
+                "모던": "현대적, 세련됨, 기하학적, 중성 색상, 금속 포인트",
+                "빈티지": "앤티크, 따뜻함, 복고풍, 장식적 디테일, 낭만적",
+                "인더스트리얼": "원자재 노출, 거친 질감, 금속/콘크리트, 산업적 느낌"
             }
 
-            style_guide = style_guides.get(style, "Follow the style description provided.")
+            style_principle = style_principles.get(style, style_description)
 
-            # 이미지 생성 강제 프롬프트
+            # 원본 기반 개선 프롬프트
             prompt = f"""
-CRITICAL: You MUST generate an edited image. Do not just provide text analysis.
+You are a professional interior designer. Analyze this room and improve it with {style} style.
 
-You are a professional interior designer specializing in {style} style.
+CRITICAL WORKFLOW:
 
-TASK: Transform this room image to {style} style. Keep the same room structure but apply {style} styling.
+STEP 1: ANALYZE THE CURRENT ROOM (원본 사진 분석)
+Look at THIS specific room and identify:
+- What is GOOD and should be KEPT (좋은 점 - 유지할 것)
+- What NEEDS IMPROVEMENT (개선이 필요한 점)
+- Current colors, furniture, layout, lighting
+- Problems: clutter, poor lighting, bad furniture placement, etc.
 
-{style} STYLE GUIDELINES:
-{style_guide}
+STEP 2: APPLY {style} IMPROVEMENTS (개선점에만 {style} 스타일 적용)
+{style} Style Principle: {style_principle}
+{style} Description: {style_description}
 
-Style Description: {style_description}
+IMPORTANT RULES:
+✅ KEEP what's already good in the original room
+✅ IMPROVE only what needs fixing
+✅ Apply {style} style to improvements, not blindly to everything
+✅ Respect the original room's character and strengths
 
-PRESERVATION (DO NOT CHANGE):
-- Room dimensions and walls
-- Window and door positions/sizes
-- Overall furniture layout
+PRESERVE:
+- Room structure (walls, windows, doors)
+- Overall layout
+- Elements that already work well
 
-APPLY {style} STYLE:
-1. Wall colors → {style} palette
-2. Furniture materials/finishes → {style} aesthetics
-3. Add new furniture if needed (specify in Korean what you added and where)
-4. Soft furnishings (curtains, rugs, bedding) → {style} patterns
-5. Lighting fixtures → {style} designs
-6. Decorative items → {style} accessories
-7. Flooring → {style} materials
+IMPROVE with {style} style:
+- Fix problem areas identified in Step 1
+- Update materials/finishes where needed
+- Add furniture if there are gaps in functionality
+- Adjust colors only if current ones clash or look bad
+- Improve lighting if insufficient
+- Add {style}-appropriate decor if room feels empty
 
-STRICT ADHERENCE TO {style} STYLE:
-- Follow ALL guidelines above for {style}
-- Do NOT mix with other styles
-- Every element must match {style} aesthetic perfectly
+DON'T:
+❌ Change colors just because style guide says so - only if current colors are problematic
+❌ Replace furniture that already fits the style
+❌ Add unnecessary items
+❌ Ignore what's already working in the original
 
-OUTPUT REQUIRED:
-1. First: Brief Korean explanation (한국어로):
-   - 현재 상태 관찰
-   - {style} 스타일 변경 내용
-   - 추가한 가구 (구체적으로 명시: 예: "침대 옆에 {style} 스타일 사이드 테이블 추가")
+OUTPUT (한국어로):
+1. 현재 방 분석:
+   - 잘되어 있는 점 (유지할 부분)
+   - 개선이 필요한 점
 
-2. Second: GENERATE THE TRANSFORMED IMAGE showing {style} style applied
-   - This is MANDATORY - you must produce an edited image
-   - Apply all {style} guidelines strictly
-   - Keep the same room layout
+2. {style} 스타일 개선 내용:
+   - 구체적으로 무엇을 어떻게 바꿨는지
+   - 추가한 가구/소품 (있다면)
+   - 왜 이렇게 바꿨는지
+
+3. GENERATE THE IMPROVED IMAGE
+   - Keep good elements from original
+   - Fix problems with {style} style
+   - Natural, realistic improvement
             """
 
             print(f"Generating image with prompt: {prompt[:150]}...")
