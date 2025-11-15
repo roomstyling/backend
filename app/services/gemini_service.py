@@ -1,6 +1,6 @@
 import os
-import google.generativeai as genai
-from google import genai as imagen_genai
+import google.generativeai as genai_old
+from google import genai
 from google.genai import types
 from PIL import Image
 from typing import Dict, Any, Optional
@@ -19,12 +19,12 @@ class GeminiService:
         if not api_key:
             raise ValueError("GEMINI_API_KEY 환경변수가 설정되지 않았습니다.")
 
-        # Gemini 모델 (텍스트/분석용)
-        genai.configure(api_key=api_key)
-        self.model = genai.GenerativeModel('gemini-2.5-flash-image-preview')
+        # 구버전 Gemini 모델 (텍스트/분석용)
+        genai_old.configure(api_key=api_key)
+        self.model = genai_old.GenerativeModel('gemini-2.5-flash-image-preview')
 
-        # Imagen 클라이언트 (이미지 생성용)
-        self.imagen_client = imagen_genai.Client(api_key=api_key)
+        # 신버전 Gemini 클라이언트 (이미지 생성용)
+        self.client = genai.Client(api_key=api_key)
 
     async def analyze_room(self, image_path: str) -> Dict[str, Any]:
         """원룸 사진 분석"""
@@ -146,82 +146,68 @@ class GeminiService:
         style: str,
         style_description: str
     ) -> Optional[str]:
-        """인테리어 스타일이 적용된 이미지 생성 (Imagen API 사용)
+        """인테리어 스타일이 적용된 이미지 생성 (Gemini 2.5 Flash Image 사용)
 
         Returns:
             생성된 이미지의 파일명
         """
         try:
-            # 1. 먼저 Gemini로 원본 이미지를 분석해서 상세한 프롬프트 생성
-            img = Image.open(image_path)
+            # 원본 이미지 로드
+            original_image = Image.open(image_path)
 
-            analysis_prompt = f"""
-            이 원룸 사진을 분석하고, {style} 스타일의 인테리어 이미지를 생성하기 위한
-            상세한 영문 프롬프트를 작성해주세요.
+            # 이미지 편집 프롬프트
+            prompt = f"""
+            Transform this room into a {style} style interior design.
 
-            다음 정보를 포함해야 합니다:
-            - 방의 구조와 레이아웃
-            - 창문과 문의 위치
-            - 방의 크기와 비율
-            - {style} 스타일에 맞는 가구 배치
-            - {style} 스타일의 색상 팔레트
-            - 조명과 소품
+            Style description: {style_description}
 
-            스타일 설명: {style_description}
+            Requirements:
+            - Keep the room structure (windows, doors, walls) but redesign the interior
+            - Apply {style} style furniture arrangement
+            - Use {style} style color palette
+            - Add appropriate lighting and decorative items
+            - Make it realistic and practical
+            - Maximize space utilization
+            - Create a high-quality, photorealistic interior rendering
 
-            프롬프트는 "A {style} style studio apartment interior with..." 형식으로 시작하고,
-            사실적이고 고품질의 인테리어 렌더링을 강조해주세요.
+            Make it look professional and inviting while maintaining the original room layout.
             """
 
-            analysis_response = self.model.generate_content([analysis_prompt, img])
+            print(f"Generating image with prompt: {prompt[:150]}...")
 
-            # 응답에서 텍스트 추출
-            detailed_prompt = ""
-            if hasattr(analysis_response, 'candidates') and analysis_response.candidates:
-                candidate = analysis_response.candidates[0]
-                if hasattr(candidate, 'content') and hasattr(candidate.content, 'parts'):
-                    for part in candidate.content.parts:
-                        if hasattr(part, 'text'):
-                            detailed_prompt += part.text
-
-            detailed_prompt = detailed_prompt.strip()
-
-            if not detailed_prompt:
-                raise Exception("Gemini가 프롬프트를 생성하지 못했습니다.")
-
-            print(f"Generated prompt for Imagen: {detailed_prompt[:200]}...")
-
-            # 2. Imagen API로 이미지 생성
-            response = self.imagen_client.models.generate_images(
-                model='imagen-4.0-generate-001',
-                prompt=detailed_prompt,
-                config=types.GenerateImagesConfig(
-                    number_of_images=1,
-                )
+            # Gemini 2.5 Flash Image로 이미지 편집
+            response = self.client.models.generate_content(
+                model="gemini-2.5-flash-image",
+                contents=[prompt, original_image],
             )
 
-            # 3. 생성된 이미지 저장
-            if response.generated_images and len(response.generated_images) > 0:
-                generated_image = response.generated_images[0]
+            # 응답에서 이미지 데이터 추출 및 저장
+            import uuid
+            BASE_DIR = Path(__file__).resolve().parent.parent.parent
+            UPLOAD_DIR = BASE_DIR / "uploads"
+            UPLOAD_DIR.mkdir(exist_ok=True)
 
-                # 파일로 저장
-                import uuid
-                BASE_DIR = Path(__file__).resolve().parent.parent.parent
-                UPLOAD_DIR = BASE_DIR / "uploads"
-                UPLOAD_DIR.mkdir(exist_ok=True)
+            filename = f"generated_{uuid.uuid4()}.png"
+            output_path = UPLOAD_DIR / filename
 
-                filename = f"generated_{uuid.uuid4()}.png"
-                output_path = UPLOAD_DIR / filename
+            # parts를 순회하며 이미지 데이터 찾기
+            image_found = False
+            for part in response.parts:
+                if part.text is not None:
+                    print(f"Response text: {part.text[:200]}...")
+                elif part.inline_data is not None:
+                    # 이미지 데이터 발견
+                    print("Image data found in response")
+                    image = part.as_image()
+                    image.save(str(output_path))
+                    print(f"Image saved successfully to: {output_path}")
+                    image_found = True
+                    break
 
-                # generated_image.image는 이미 PIL Image 객체
-                # 파일 확장자(.png)로 포맷이 자동 인식됨
-                pil_image = generated_image.image
-                pil_image.save(str(output_path))
-                print(f"Image saved successfully to: {output_path}")
+            if not image_found:
+                raise Exception("Gemini가 이미지를 생성하지 못했습니다. 텍스트 응답만 반환되었습니다.")
 
-                return filename
-            else:
-                raise Exception("Imagen API가 이미지를 생성하지 못했습니다.")
+            return filename
 
         except Exception as e:
             print(f"Error in generate_interior_image: {type(e).__name__}: {str(e)}")
