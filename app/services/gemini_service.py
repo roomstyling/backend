@@ -181,6 +181,9 @@ class GeminiService:
                 contents=[prompt, original_image],
             )
 
+            print(f"DEBUG: Response type: {type(response)}")
+            print(f"DEBUG: Response attributes: {dir(response)}")
+
             # 응답에서 이미지 데이터 추출 및 저장
             import uuid
             BASE_DIR = Path(__file__).resolve().parent.parent.parent
@@ -192,10 +195,28 @@ class GeminiService:
 
             # parts를 순회하며 이미지 데이터 찾기
             image_found = False
-            for part in response.parts:
-                if part.text is not None:
+
+            # 응답 구조 확인
+            if hasattr(response, 'parts'):
+                print("DEBUG: response.parts exists")
+                parts = response.parts
+            elif hasattr(response, 'candidates'):
+                print("DEBUG: Using response.candidates")
+                if response.candidates and len(response.candidates) > 0:
+                    candidate = response.candidates[0]
+                    if hasattr(candidate, 'content') and hasattr(candidate.content, 'parts'):
+                        parts = candidate.content.parts
+                    else:
+                        raise Exception(f"Unexpected candidate structure: {dir(candidate)}")
+                else:
+                    raise Exception("No candidates in response")
+            else:
+                raise Exception(f"Unknown response structure. Attributes: {dir(response)}")
+
+            for part in parts:
+                if hasattr(part, 'text') and part.text is not None:
                     print(f"Response text: {part.text[:200]}...")
-                elif part.inline_data is not None:
+                elif hasattr(part, 'inline_data') and part.inline_data is not None:
                     # 이미지 데이터 발견
                     print("Image data found in response")
                     image = part.as_image()
