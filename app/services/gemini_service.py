@@ -219,11 +219,37 @@ class GeminiService:
                 elif hasattr(part, 'inline_data') and part.inline_data is not None:
                     # 이미지 데이터 발견
                     print("Image data found in response")
-                    image = part.as_image()
-                    image.save(str(output_path))
-                    print(f"Image saved successfully to: {output_path}")
-                    image_found = True
-                    break
+                    print(f"DEBUG: inline_data type: {type(part.inline_data)}")
+                    print(f"DEBUG: inline_data attributes: {dir(part.inline_data)}")
+
+                    # inline_data에서 이미지 데이터 추출
+                    if hasattr(part.inline_data, 'data'):
+                        image_data = part.inline_data.data
+                        mime_type = getattr(part.inline_data, 'mime_type', 'image/png')
+
+                        print(f"DEBUG: MIME type: {mime_type}")
+                        print(f"DEBUG: Image data length: {len(image_data)}")
+
+                        # base64 디코딩 후 PIL Image로 변환
+                        try:
+                            image_bytes = base64.b64decode(image_data)
+                            image = Image.open(BytesIO(image_bytes))
+                            image.save(str(output_path))
+                            print(f"Image saved successfully to: {output_path}")
+                            image_found = True
+                            break
+                        except Exception as img_error:
+                            print(f"DEBUG: Failed to decode/save image: {img_error}")
+                            # base64 디코딩 없이 직접 시도
+                            try:
+                                image = Image.open(BytesIO(image_data))
+                                image.save(str(output_path))
+                                print(f"Image saved successfully (without base64 decode) to: {output_path}")
+                                image_found = True
+                                break
+                            except Exception as img_error2:
+                                print(f"DEBUG: Failed to save image directly: {img_error2}")
+                                raise
 
             if not image_found:
                 raise Exception("Gemini가 이미지를 생성하지 못했습니다. 텍스트 응답만 반환되었습니다.")
