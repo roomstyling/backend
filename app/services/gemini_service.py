@@ -145,32 +145,86 @@ class GeminiService:
         image_path: str,
         style: str,
         style_description: str
-    ) -> Optional[str]:
+    ) -> dict:
         """인테리어 스타일이 적용된 이미지 생성 (Gemini 2.5 Flash Image 사용)
 
         Returns:
-            생성된 이미지의 파일명
+            dict: {
+                'filename': 생성된 이미지 파일명,
+                'analysis': 분석 및 변경 내용 텍스트
+            }
         """
         try:
             # 원본 이미지 로드
             original_image = Image.open(image_path)
 
-            # 이미지 편집 프롬프트
+            # 스타일별 핵심 원칙 (참고용, 강제 아님)
+            style_principles = {
+                "미니멀리스트": "심플함, 필수 요소만, 여백 강조, 깔끔한 라인",
+                "스칸디나비안": "밝은 원목, 자연스러움, 아늑함, 따뜻한 조명, 식물",
+                "모던": "현대적, 세련됨, 기하학적, 중성 색상, 금속 포인트",
+                "빈티지": "앤티크, 따뜻함, 복고풍, 장식적 디테일, 낭만적",
+                "인더스트리얼": "원자재 노출, 거친 질감, 금속/콘크리트, 산업적 느낌"
+            }
+
+            style_principle = style_principles.get(style, style_description)
+
+            # 원본 기반 개선 프롬프트
             prompt = f"""
-            Transform this room into a {style} style interior design.
+You are a professional interior designer. Analyze this room and improve it with {style} style.
 
-            Style description: {style_description}
+CRITICAL WORKFLOW:
 
-            Requirements:
-            - Keep the room structure (windows, doors, walls) but redesign the interior
-            - Apply {style} style furniture arrangement
-            - Use {style} style color palette
-            - Add appropriate lighting and decorative items
-            - Make it realistic and practical
-            - Maximize space utilization
-            - Create a high-quality, photorealistic interior rendering
+STEP 1: ANALYZE THE CURRENT ROOM (원본 사진 분석)
+Look at THIS specific room and identify:
+- What is GOOD and should be KEPT (좋은 점 - 유지할 것)
+- What NEEDS IMPROVEMENT (개선이 필요한 점)
+- Current colors, furniture, layout, lighting
+- Problems: clutter, poor lighting, bad furniture placement, etc.
 
-            Make it look professional and inviting while maintaining the original room layout.
+STEP 2: APPLY {style} IMPROVEMENTS (개선점에만 {style} 스타일 적용)
+{style} Style Principle: {style_principle}
+{style} Description: {style_description}
+
+IMPORTANT RULES:
+✅ KEEP what's already good in the original room
+✅ IMPROVE only what needs fixing
+✅ Apply {style} style to improvements, not blindly to everything
+✅ Respect the original room's character and strengths
+
+PRESERVE:
+- Room structure (walls, windows, doors)
+- Overall layout
+- Elements that already work well
+
+IMPROVE with {style} style:
+- Fix problem areas identified in Step 1
+- Update materials/finishes where needed
+- Add furniture if there are gaps in functionality
+- Adjust colors only if current ones clash or look bad
+- Improve lighting if insufficient
+- Add {style}-appropriate decor if room feels empty
+
+DON'T:
+❌ Change colors just because style guide says so - only if current colors are problematic
+❌ Replace furniture that already fits the style
+❌ Add unnecessary items
+❌ Ignore what's already working in the original
+
+OUTPUT (한국어로):
+1. 현재 방 분석:
+   - 잘되어 있는 점 (유지할 부분)
+   - 개선이 필요한 점
+
+2. {style} 스타일 개선 내용:
+   - 구체적으로 무엇을 어떻게 바꿨는지
+   - 추가한 가구/소품 (있다면)
+   - 왜 이렇게 바꿨는지
+
+3. GENERATE THE IMPROVED IMAGE
+   - Keep good elements from original
+   - Fix problems with {style} style
+   - Natural, realistic improvement
             """
 
             print(f"Generating image with prompt: {prompt[:150]}...")
@@ -181,6 +235,9 @@ class GeminiService:
                 contents=[prompt, original_image],
             )
 
+            print(f"DEBUG: Response type: {type(response)}")
+            print(f"DEBUG: Response attributes: {dir(response)}")
+
             # 응답에서 이미지 데이터 추출 및 저장
             import uuid
             BASE_DIR = Path(__file__).resolve().parent.parent.parent
@@ -190,24 +247,74 @@ class GeminiService:
             filename = f"generated_{uuid.uuid4()}.png"
             output_path = UPLOAD_DIR / filename
 
-            # parts를 순회하며 이미지 데이터 찾기
+            # parts를 순회하며 텍스트와 이미지 데이터 추출
             image_found = False
-            for part in response.parts:
-                if part.text is not None:
+            analysis_text = ""
+
+            # 응답 구조 확인
+            if hasattr(response, 'parts'):
+                print("DEBUG: response.parts exists")
+                parts = response.parts
+            elif hasattr(response, 'candidates'):
+                print("DEBUG: Using response.candidates")
+                if response.candidates and len(response.candidates) > 0:
+                    candidate = response.candidates[0]
+                    if hasattr(candidate, 'content') and hasattr(candidate.content, 'parts'):
+                        parts = candidate.content.parts
+                    else:
+                        raise Exception(f"Unexpected candidate structure: {dir(candidate)}")
+                else:
+                    raise Exception("No candidates in response")
+            else:
+                raise Exception(f"Unknown response structure. Attributes: {dir(response)}")
+
+            for part in parts:
+                if hasattr(part, 'text') and part.text is not None:
+                    # 텍스트 분석 내용 수집
+                    analysis_text += part.text
                     print(f"Response text: {part.text[:200]}...")
-                elif part.inline_data is not None:
+                elif hasattr(part, 'inline_data') and part.inline_data is not None:
                     # 이미지 데이터 발견
                     print("Image data found in response")
-                    image = part.as_image()
-                    image.save(str(output_path))
-                    print(f"Image saved successfully to: {output_path}")
-                    image_found = True
-                    break
+                    print(f"DEBUG: inline_data type: {type(part.inline_data)}")
+                    print(f"DEBUG: inline_data attributes: {dir(part.inline_data)}")
+
+                    # inline_data에서 이미지 데이터 추출
+                    if hasattr(part.inline_data, 'data'):
+                        image_data = part.inline_data.data
+                        mime_type = getattr(part.inline_data, 'mime_type', 'image/png')
+
+                        print(f"DEBUG: MIME type: {mime_type}")
+                        print(f"DEBUG: Image data length: {len(image_data)}")
+
+                        # base64 디코딩 후 PIL Image로 변환
+                        try:
+                            image_bytes = base64.b64decode(image_data)
+                            image = Image.open(BytesIO(image_bytes))
+                            image.save(str(output_path))
+                            print(f"Image saved successfully to: {output_path}")
+                            image_found = True
+                            break
+                        except Exception as img_error:
+                            print(f"DEBUG: Failed to decode/save image: {img_error}")
+                            # base64 디코딩 없이 직접 시도
+                            try:
+                                image = Image.open(BytesIO(image_data))
+                                image.save(str(output_path))
+                                print(f"Image saved successfully (without base64 decode) to: {output_path}")
+                                image_found = True
+                                break
+                            except Exception as img_error2:
+                                print(f"DEBUG: Failed to save image directly: {img_error2}")
+                                raise
 
             if not image_found:
                 raise Exception("Gemini가 이미지를 생성하지 못했습니다. 텍스트 응답만 반환되었습니다.")
 
-            return filename
+            return {
+                'filename': filename,
+                'analysis': analysis_text.strip() if analysis_text else "분석 내용이 생성되지 않았습니다."
+            }
 
         except Exception as e:
             print(f"Error in generate_interior_image: {type(e).__name__}: {str(e)}")

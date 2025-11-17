@@ -178,22 +178,23 @@ async def generate_interior_image(request: DesignRequest):
 
         gemini = get_gemini_service()
 
-        # 인테리어 이미지 생성
-        generated_filename = await gemini.generate_interior_image(
+        # 인테리어 이미지 생성 (이미지 + 분석 텍스트)
+        result = await gemini.generate_interior_image(
             str(file_path),
             style.name,
             style.description
         )
 
-        if not generated_filename:
+        if not result or not result.get('filename'):
             raise HTTPException(status_code=500, detail="이미지 생성에 실패했습니다.")
 
         return JSONResponse(content={
             "success": True,
             "message": "인테리어 이미지가 성공적으로 생성되었습니다.",
-            "generated_image": generated_filename,
+            "generated_image": result['filename'],
             "original_image": request.image_filename,
-            "style": style.name
+            "style": style.name,
+            "analysis": result.get('analysis', '')
         })
 
     except HTTPException:
