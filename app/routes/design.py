@@ -260,46 +260,60 @@ async def get_styled_images(file: UploadFile = File(...)):
             content = await file.read()
             buffer.write(content)
 
-        # 2. 모든 스타일에 대해 병렬로 이미지 생성
+        # 2. 모든 스타일에 대해 병렬로 이미지 생성 (동시 요청 수 제한)
         gemini = get_gemini_service()
 
-        async def generate_for_style(style: StyleOption) -> Dict[str, Any]:
-            """단일 스타일에 대한 이미지 생성"""
-            try:
-                result = await gemini.generate_interior_image(
-                    str(file_path),
-                    style.name,
-                    style.description
-                )
+        # Gemini API Rate Limiting 방지: 동시에 최대 2개만 요청
+        semaphore = asyncio.Semaphore(2)
 
-                return {
-                    "style_id": style.id,
-                    "style_name": style.name,
-                    "generated_image": result.get('filename', ''),
-                    "analysis": result.get('analysis', ''),
-                    "success": True
-                }
-            except Exception as e:
-                return {
-                    "style_id": style.id,
-                    "style_name": style.name,
-                    "generated_image": "",
-                    "analysis": "",
-                    "success": False,
-                    "error": str(e)
-                }
+        async def generate_for_style(style: StyleOption, max_retries: int = 2) -> Dict[str, Any]:
+            """단일 스타일에 대한 이미지 생성 (Retry 로직 포함)"""
+            async with semaphore:
+                for attempt in range(max_retries):
+                    try:
+                        result = await gemini.generate_interior_image(
+                            str(file_path),
+                            style.name,
+                            style.description
+                        )
 
-        # 3. 병렬 실행 with 15초 타임아웃
+                        return {
+                            "style_id": style.id,
+                            "style_name": style.name,
+                            "generated_image": result.get('filename', ''),
+                            "analysis": result.get('analysis', ''),
+                            "success": True
+                        }
+                    except Exception as e:
+                        error_msg = str(e)
+                        # 503 에러거나 rate limit 에러면 재시도
+                        if ("503" in error_msg or "rate" in error_msg.lower() or "quota" in error_msg.lower()) and attempt < max_retries - 1:
+                            wait_time = (2 ** attempt)  # Exponential backoff: 1s, 2s
+                            print(f"Rate limit hit for {style.name}, retrying in {wait_time}s...")
+                            await asyncio.sleep(wait_time)
+                            continue
+
+                        # 최종 실패
+                        return {
+                            "style_id": style.id,
+                            "style_name": style.name,
+                            "generated_image": "",
+                            "analysis": "",
+                            "success": False,
+                            "error": error_msg
+                        }
+
+        # 3. 병렬 실행 with 20초 타임아웃 (재시도 고려)
         try:
             results = await asyncio.wait_for(
                 asyncio.gather(*[generate_for_style(style) for style in STYLE_OPTIONS]),
-                timeout=15.0
+                timeout=20.0
             )
         except asyncio.TimeoutError:
             # 타임아웃 발생 시 부분 결과 반환
             raise HTTPException(
                 status_code=408,
-                detail="이미지 생성 시간이 15초를 초과했습니다. 일부 스타일은 생성되지 않았을 수 있습니다."
+                detail="이미지 생성 시간이 20초를 초과했습니다. 일부 스타일은 생성되지 않았을 수 있습니다."
             )
 
         processing_time = time.time() - start_time

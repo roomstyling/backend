@@ -165,73 +165,95 @@ class GeminiService:
             # 원본 이미지 로드
             original_image = Image.open(image_path)
 
-            # 스타일별 핵심 원칙 (참고용, 강제 아님)
-            style_principles = {
-                "미니멀리스트": "심플함, 필수 요소만, 여백 강조, 깔끔한 라인",
-                "스칸디나비안": "밝은 원목, 자연스러움, 아늑함, 따뜻한 조명, 식물",
-                "모던": "현대적, 세련됨, 기하학적, 중성 색상, 금속 포인트",
-                "빈티지": "앤티크, 따뜻함, 복고풍, 장식적 디테일, 낭만적",
-                "인더스트리얼": "원자재 노출, 거친 질감, 금속/콘크리트, 산업적 느낌"
+            # 스타일별 핵심 감성 및 접근법
+            style_essence = {
+                "미니멀리스트": {
+                    "essence": "Less is more. 공간의 여백이 주는 평온함과 심플한 라인의 우아함",
+                    "approach": "불필요한 것을 덜어내되, 남은 것은 완벽하게. 기능과 미학의 조화"
+                },
+                "스칸디나비안": {
+                    "essence": "자연광과 나무의 따뜻함, 휘게(Hygge) 문화의 아늑함",
+                    "approach": "자연 소재와 밝은 톤으로 북유럽의 여유로움을 담아내기"
+                },
+                "모던": {
+                    "essence": "현대적 세련미와 기하학적 정교함, 도시적 감각",
+                    "approach": "깔끔한 라인과 중성적 색감으로 시대를 초월하는 모던함 표현"
+                },
+                "빈티지": {
+                    "essence": "시간이 만들어낸 이야기와 감성, 레트로의 낭만",
+                    "approach": "앤티크한 디테일과 따뜻한 색감으로 추억을 불러일으키는 공간"
+                },
+                "인더스트리얼": {
+                    "essence": "날것의 재료가 주는 솔직함과 거친 매력, 도시 로프트 감성",
+                    "approach": "노출된 구조와 원자재의 질감으로 날것의 아름다움 강조"
+                }
             }
 
-            style_principle = style_principles.get(style, style_description)
+            style_info = style_essence.get(style, {
+                "essence": style_description,
+                "approach": "공간의 가능성을 최대한 이끌어내기"
+            })
 
-            # 원본 기반 개선 프롬프트
+            # 전문 인테리어 디자이너 프롬프트
             prompt = f"""
-You are a professional interior designer. Analyze this room and improve it with {style} style.
+You are an award-winning interior designer with 15+ years of experience specializing in residential spaces.
+You've completed over 500 successful room transformations and are known for your ability to see potential in every space.
 
-CRITICAL WORKFLOW:
+=== YOUR MISSION ===
+Transform this room with {style} style while respecting its unique character.
 
-STEP 1: ANALYZE THE CURRENT ROOM (원본 사진 분석)
-Look at THIS specific room and identify:
-- What is GOOD and should be KEPT (좋은 점 - 유지할 것)
-- What NEEDS IMPROVEMENT (개선이 필요한 점)
-- Current colors, furniture, layout, lighting
-- Problems: clutter, poor lighting, bad furniture placement, etc.
+{style} 스타일의 본질: {style_info['essence']}
+디자인 철학: {style_info['approach']}
 
-STEP 2: APPLY {style} IMPROVEMENTS (개선점에만 {style} 스타일 적용)
-{style} Style Principle: {style_principle}
-{style} Description: {style_description}
+=== YOUR DESIGN PROCESS ===
 
-IMPORTANT RULES:
-✅ KEEP what's already good in the original room
-✅ IMPROVE only what needs fixing
-✅ Apply {style} style to improvements, not blindly to everything
-✅ Respect the original room's character and strengths
+First, study this room like you're meeting a new client. Look deeply:
+- What makes this space special? What's already working well?
+- What's holding it back? Where's the friction in daily life?
+- How does the light move through the space? What's the flow?
+- If you lived here, what would frustrate you? What would delight you?
 
-PRESERVE:
-- Room structure (walls, windows, doors)
-- Overall layout
-- Elements that already work well
+Then, envision the transformation:
+- How can {style} style solve the real problems here?
+- What elements should stay because they're perfect as-is?
+- What small changes would make the biggest impact?
+- Where can you add personality without overcrowding?
+- How to make this feel authentically {style}, not like a magazine copy?
 
-IMPROVE with {style} style:
-- Fix problem areas identified in Step 1
-- Update materials/finishes where needed
-- Add furniture if there are gaps in functionality
-- Adjust colors only if current ones clash or look bad
-- Improve lighting if insufficient
-- Add {style}-appropriate decor if room feels empty
+=== DESIGN GUIDELINES (your creative intuition, not rigid rules) ===
 
-DON'T:
-❌ Change colors just because style guide says so - only if current colors are problematic
-❌ Replace furniture that already fits the style
-❌ Add unnecessary items
-❌ Ignore what's already working in the original
+Respect what works:
+The best designers know when to leave things alone. If the natural light is beautiful, enhance it. If there's a good furniture piece, work with it. Don't change for change's sake.
 
-OUTPUT (한국어로):
-1. 현재 방 분석:
-   - 잘되어 있는 점 (유지할 부분)
-   - 개선이 필요한 점
+Solve real problems:
+Bad lighting? Fix it. Awkward flow? Rearrange. Cluttered? Simplify. Each change should have a purpose.
 
-2. {style} 스타일 개선 내용:
-   - 구체적으로 무엇을 어떻게 바꿨는지
-   - 추가한 가구/소품 (있다면)
-   - 왜 이렇게 바꿨는지
+Add {style} authentically:
+This isn't about checking boxes (white walls = minimalist). It's about capturing the feeling. What makes {style} spaces feel the way they do? That's what you're after.
 
-3. GENERATE THE IMPROVED IMAGE
-   - Keep good elements from original
-   - Fix problems with {style} style
-   - Natural, realistic improvement
+Stay grounded in reality:
+This room needs to work for real life. Beautiful but livable. Stylish but comfortable. Instagram-worthy but actually functional.
+
+=== YOUR DELIVERABLE (한국어로 작성) ===
+
+전문가 분석:
+
+1. 원본 공간의 가능성
+   - 이 공간만의 매력 포인트 (반드시 살려야 할 것)
+   - 현재 방해 요소 (개선이 필요한 부분)
+   - 전반적인 공간 느낌과 잠재력
+
+2. {style} 스타일 디자인 제안
+   - 핵심 변화: 가장 임팩트 있는 3가지 개선사항
+   - 색감과 소재: 어떤 톤과 질감으로 {style} 감성을 담을지
+   - 디테일: 작지만 중요한 터치 (조명, 소품, 텍스처 등)
+   - 추가/변경 가구 (필요한 경우만, 구체적인 이유와 함께)
+
+3. 디자이너의 한 마디
+   - 이 디자인이 거주자의 삶을 어떻게 개선할지
+
+Now, generate the transformed image that brings this vision to life.
+Make it feel lived-in, not staged. Real, not fake. {style}, not stereotypical.
             """
 
             print(f"Generating image with prompt: {prompt[:150]}...")
