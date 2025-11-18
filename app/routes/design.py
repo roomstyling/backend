@@ -2,7 +2,9 @@ from fastapi import APIRouter, UploadFile, File, HTTPException
 from fastapi.responses import JSONResponse, FileResponse
 import os
 import uuid
-from typing import List
+import asyncio
+import time
+from typing import List, Dict, Any
 from pathlib import Path
 from ..models.schemas import (
     StyleOption,
@@ -212,3 +214,104 @@ async def get_image(filename: str):
         raise HTTPException(status_code=404, detail="이미지를 찾을 수 없습니다.")
 
     return FileResponse(str(file_path))
+
+
+@router.post("/get_styled_images")
+async def get_styled_images(file: UploadFile = File(...)):
+    """
+    이미지 1개를 업로드하면 모든 스타일(5개)의 합성 결과를 15초 이내에 반환
+
+    Returns:
+        {
+            "success": bool,
+            "original_image": str,
+            "processing_time": float,
+            "results": [
+                {
+                    "style_id": str,
+                    "style_name": str,
+                    "generated_image": str,
+                    "analysis": str,
+                    "success": bool,
+                    "error": str (optional)
+                }
+            ]
+        }
+    """
+    start_time = time.time()
+
+    try:
+        # 1. 파일 검증 및 저장
+        allowed_extensions = {".jpg", ".jpeg", ".png", ".webp"}
+        file_ext = os.path.splitext(file.filename)[1].lower()
+
+        if file_ext not in allowed_extensions:
+            raise HTTPException(
+                status_code=400,
+                detail=f"지원하지 않는 파일 형식입니다. 허용된 형식: {', '.join(allowed_extensions)}"
+            )
+
+        # 고유한 파일명 생성
+        unique_filename = f"{uuid.uuid4()}{file_ext}"
+        file_path = UPLOAD_DIR / unique_filename
+
+        # 파일 저장
+        with open(str(file_path), "wb") as buffer:
+            content = await file.read()
+            buffer.write(content)
+
+        # 2. 모든 스타일에 대해 병렬로 이미지 생성
+        gemini = get_gemini_service()
+
+        async def generate_for_style(style: StyleOption) -> Dict[str, Any]:
+            """단일 스타일에 대한 이미지 생성"""
+            try:
+                result = await gemini.generate_interior_image(
+                    str(file_path),
+                    style.name,
+                    style.description
+                )
+
+                return {
+                    "style_id": style.id,
+                    "style_name": style.name,
+                    "generated_image": result.get('filename', ''),
+                    "analysis": result.get('analysis', ''),
+                    "success": True
+                }
+            except Exception as e:
+                return {
+                    "style_id": style.id,
+                    "style_name": style.name,
+                    "generated_image": "",
+                    "analysis": "",
+                    "success": False,
+                    "error": str(e)
+                }
+
+        # 3. 병렬 실행 with 15초 타임아웃
+        try:
+            results = await asyncio.wait_for(
+                asyncio.gather(*[generate_for_style(style) for style in STYLE_OPTIONS]),
+                timeout=15.0
+            )
+        except asyncio.TimeoutError:
+            # 타임아웃 발생 시 부분 결과 반환
+            raise HTTPException(
+                status_code=408,
+                detail="이미지 생성 시간이 15초를 초과했습니다. 일부 스타일은 생성되지 않았을 수 있습니다."
+            )
+
+        processing_time = time.time() - start_time
+
+        return JSONResponse(content={
+            "success": True,
+            "original_image": unique_filename,
+            "processing_time": round(processing_time, 2),
+            "results": results
+        })
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"처리 실패: {str(e)}")
