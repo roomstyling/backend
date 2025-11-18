@@ -2,6 +2,7 @@ import os
 import google.generativeai as genai_old
 from google import genai
 from google.genai import types
+from google.generativeai.types import content_types
 from PIL import Image
 from typing import Dict, Any, Optional
 import json
@@ -26,54 +27,79 @@ class GeminiService:
         # 신버전 Gemini 클라이언트 (이미지 생성용)
         self.client = genai.Client(api_key=api_key)
 
+        # Structured Output 스키마 정의
+        self._setup_schemas()
+
+    def _setup_schemas(self):
+        """Structured Output용 JSON 스키마 정의"""
+        # 방 분석 스키마
+        self.room_analysis_schema = content_types.to_content({
+            "type": "object",
+            "properties": {
+                "room_type": {"type": "string", "description": "원룸/투룸 등 방 타입"},
+                "size_estimate": {"type": "string", "description": "평수 추정"},
+                "current_layout": {"type": "string", "description": "현재 레이아웃 설명"},
+                "issues": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "description": "문제점 목록"
+                },
+                "strengths": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "description": "장점 목록"
+                }
+            },
+            "required": ["room_type", "size_estimate", "current_layout", "issues", "strengths"]
+        })
+
+        # 디자인 가이드 스키마
+        self.design_guide_schema = content_types.to_content({
+            "type": "object",
+            "properties": {
+                "recommendations": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "description": "추천사항 목록"
+                },
+                "layout_suggestions": {"type": "string", "description": "레이아웃 제안 상세 설명"},
+                "color_scheme": {"type": "string", "description": "색상 배치 제안"},
+                "furniture_suggestions": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "description": "가구 제안 목록"
+                }
+            },
+            "required": ["recommendations", "layout_suggestions", "color_scheme", "furniture_suggestions"]
+        })
+
     async def analyze_room(self, image_path: str) -> Dict[str, Any]:
-        """원룸 사진 분석"""
+        """원룸 사진 분석 (Structured Output 사용)"""
         try:
             img = Image.open(image_path)
 
             prompt = """
-            이 원룸 사진을 분석해주세요. 다음 정보를 JSON 형식으로 제공해주세요:
-
-            {
-                "room_type": "원룸/투룸 등",
-                "size_estimate": "평수 추정",
-                "current_layout": "현재 레이아웃 설명",
-                "issues": ["문제점 1", "문제점 2", ...],
-                "strengths": ["장점 1", "장점 2", ...]
-            }
+            이 원룸 사진을 분석해주세요.
 
             특히 다음 사항을 확인해주세요:
-            - 방문 옆에 침대가 있는지 (동선 문제)
-            - 창문 위치와 채광
-            - 공간 활용도
-            - 수납 공간
-            - 가구 배치의 효율성
+            - room_type: 원룸/투룸 등 방 타입
+            - size_estimate: 평수 추정
+            - current_layout: 현재 레이아웃 설명
+            - issues: 방문 옆 침대 여부(동선), 채광, 공간 활용도, 수납, 가구 배치 문제점
+            - strengths: 장점 목록
             """
 
-            response = self.model.generate_content([prompt, img])
+            # Structured Output 사용
+            response = self.model.generate_content(
+                [prompt, img],
+                generation_config=genai_old.GenerationConfig(
+                    response_mime_type="application/json",
+                    response_schema=self.room_analysis_schema
+                )
+            )
 
-            # JSON 파싱 시도
-            try:
-                # 마크다운 코드 블록 제거
-                text = response.text.strip()
-                if text.startswith("```json"):
-                    text = text[7:]
-                if text.startswith("```"):
-                    text = text[3:]
-                if text.endswith("```"):
-                    text = text[:-3]
-
-                result = json.loads(text.strip())
-                return result
-            except json.JSONDecodeError:
-                # JSON 파싱 실패 시 기본 구조 반환
-                return {
-                    "room_type": "원룸",
-                    "size_estimate": "분석 중",
-                    "current_layout": response.text,
-                    "issues": ["분석 결과를 구조화하지 못했습니다."],
-                    "strengths": []
-                }
+            # JSON 자동 파싱 (Structured Output은 항상 유효한 JSON 반환)
+            return json.loads(response.text)
 
         except Exception as e:
             raise Exception(f"이미지 분석 중 오류 발생: {str(e)}")
@@ -84,7 +110,7 @@ class GeminiService:
         analysis: Dict[str, Any],
         style: str
     ) -> Dict[str, Any]:
-        """인테리어 디자인 가이드 생성"""
+        """인테리어 디자인 가이드 생성 (Structured Output 사용)"""
         try:
             img = Image.open(image_path)
 
@@ -99,43 +125,24 @@ class GeminiService:
 
             원하는 스타일: {style}
 
-            다음 형식의 JSON으로 답변해주세요:
-            {{
-                "recommendations": ["추천사항 1", "추천사항 2", ...],
-                "layout_suggestions": "레이아웃 제안 상세 설명",
-                "color_scheme": "색상 배치 제안",
-                "furniture_suggestions": ["가구 제안 1", "가구 제안 2", ...]
-            }}
-
-            특히:
-            1. 동선을 고려한 가구 배치
-            2. 공간을 넓어 보이게 하는 방법
-            3. 수납 공간 최적화
-            4. 선택한 스타일에 맞는 색상과 소품 제안
+            다음 항목을 포함해주세요:
+            - recommendations: 추천사항 목록
+            - layout_suggestions: 동선을 고려한 레이아웃 제안 상세 설명
+            - color_scheme: 스타일에 맞는 색상 배치 제안
+            - furniture_suggestions: 공간 최적화 및 수납을 위한 가구 제안 목록
             """
 
-            response = self.model.generate_content([prompt, img])
+            # Structured Output 사용
+            response = self.model.generate_content(
+                [prompt, img],
+                generation_config=genai_old.GenerationConfig(
+                    response_mime_type="application/json",
+                    response_schema=self.design_guide_schema
+                )
+            )
 
-            # JSON 파싱 시도
-            try:
-                text = response.text.strip()
-                if text.startswith("```json"):
-                    text = text[7:]
-                if text.startswith("```"):
-                    text = text[3:]
-                if text.endswith("```"):
-                    text = text[:-3]
-
-                result = json.loads(text.strip())
-                return result
-            except json.JSONDecodeError:
-                # JSON 파싱 실패 시 기본 구조 반환
-                return {
-                    "recommendations": [response.text],
-                    "layout_suggestions": "상세 제안은 텍스트 형식으로 제공되었습니다.",
-                    "color_scheme": "분석 중",
-                    "furniture_suggestions": []
-                }
+            # JSON 자동 파싱 (Structured Output은 항상 유효한 JSON 반환)
+            return json.loads(response.text)
 
         except Exception as e:
             raise Exception(f"디자인 가이드 생성 중 오류 발생: {str(e)}")
