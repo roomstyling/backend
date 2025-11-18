@@ -2,7 +2,6 @@ import os
 import google.generativeai as genai_old
 from google import genai
 from google.genai import types
-from google.generativeai.types import content_types
 from PIL import Image
 from typing import Dict, Any, Optional
 import json
@@ -10,98 +9,59 @@ import base64
 from io import BytesIO
 from pathlib import Path
 
+from ..config import settings
+from ..utils.logger import logger
+
 
 class GeminiService:
     """Google Gemini API 서비스"""
 
     def __init__(self):
-        # 환경변수에서 API 키 로드
-        api_key = os.getenv("GEMINI_API_KEY")
-        if not api_key:
-            raise ValueError("GEMINI_API_KEY 환경변수가 설정되지 않았습니다.")
+        # 설정에서 API 키 로드
+        if not settings.gemini_api_key:
+            raise ValueError("GEMINI_API_KEY가 설정되지 않았습니다.")
 
         # 구버전 Gemini 모델 (텍스트/분석용)
-        genai_old.configure(api_key=api_key)
+        genai_old.configure(api_key=settings.gemini_api_key)
         self.model = genai_old.GenerativeModel('gemini-2.5-flash-image-preview')
 
         # 신버전 Gemini 클라이언트 (이미지 생성용)
-        self.client = genai.Client(api_key=api_key)
+        self.client = genai.Client(api_key=settings.gemini_api_key)
 
-        # Structured Output 스키마 정의
-        self._setup_schemas()
-
-    def _setup_schemas(self):
-        """Structured Output용 JSON 스키마 정의"""
-        # 방 분석 스키마
-        self.room_analysis_schema = content_types.to_content({
-            "type": "object",
-            "properties": {
-                "room_type": {"type": "string", "description": "원룸/투룸 등 방 타입"},
-                "size_estimate": {"type": "string", "description": "평수 추정"},
-                "current_layout": {"type": "string", "description": "현재 레이아웃 설명"},
-                "issues": {
-                    "type": "array",
-                    "items": {"type": "string"},
-                    "description": "문제점 목록"
-                },
-                "strengths": {
-                    "type": "array",
-                    "items": {"type": "string"},
-                    "description": "장점 목록"
-                }
-            },
-            "required": ["room_type", "size_estimate", "current_layout", "issues", "strengths"]
-        })
-
-        # 디자인 가이드 스키마
-        self.design_guide_schema = content_types.to_content({
-            "type": "object",
-            "properties": {
-                "recommendations": {
-                    "type": "array",
-                    "items": {"type": "string"},
-                    "description": "추천사항 목록"
-                },
-                "layout_suggestions": {"type": "string", "description": "레이아웃 제안 상세 설명"},
-                "color_scheme": {"type": "string", "description": "색상 배치 제안"},
-                "furniture_suggestions": {
-                    "type": "array",
-                    "items": {"type": "string"},
-                    "description": "가구 제안 목록"
-                }
-            },
-            "required": ["recommendations", "layout_suggestions", "color_scheme", "furniture_suggestions"]
-        })
+        logger.info("GeminiService initialized")
 
     async def analyze_room(self, image_path: str) -> Dict[str, Any]:
-        """원룸 사진 분석 (Structured Output 사용)"""
+        """원룸 사진 분석 (JSON mode)"""
         try:
+            logger.info(f"Analyzing room: {image_path}")
             img = Image.open(image_path)
 
             prompt = """
-            이 원룸 사진을 분석해주세요.
+            이 원룸 사진을 분석해주세요. JSON 형식으로 답변하세요.
 
-            특히 다음 사항을 확인해주세요:
-            - room_type: 원룸/투룸 등 방 타입
-            - size_estimate: 평수 추정
-            - current_layout: 현재 레이아웃 설명
-            - issues: 방문 옆 침대 여부(동선), 채광, 공간 활용도, 수납, 가구 배치 문제점
-            - strengths: 장점 목록
+            {
+                "room_type": "원룸/투룸 등 방 타입",
+                "size_estimate": "평수 추정",
+                "current_layout": "현재 레이아웃 설명",
+                "issues": ["문제점1", "문제점2"],
+                "strengths": ["장점1", "장점2"]
+            }
             """
 
-            # Structured Output 사용
+            # JSON mode 사용
             response = self.model.generate_content(
                 [prompt, img],
                 generation_config=genai_old.GenerationConfig(
-                    response_mime_type="application/json",
-                    response_schema=self.room_analysis_schema
+                    response_mime_type="application/json"
                 )
             )
 
-            # JSON 자동 파싱 (Structured Output은 항상 유효한 JSON 반환)
-            return json.loads(response.text)
+            result = json.loads(response.text)
+            logger.info(f"Room analysis completed: {result.get('room_type', 'unknown')}")
+            return result
 
         except Exception as e:
+            logger.error(f"Room analysis failed: {str(e)}", exc_info=True)
             raise Exception(f"이미지 분석 중 오류 발생: {str(e)}")
 
     async def generate_design_guide(
@@ -110,41 +70,38 @@ class GeminiService:
         analysis: Dict[str, Any],
         style: str
     ) -> Dict[str, Any]:
-        """인테리어 디자인 가이드 생성 (Structured Output 사용)"""
+        """인테리어 디자인 가이드 생성 (JSON mode)"""
         try:
+            logger.info(f"Generating design guide for {style}")
             img = Image.open(image_path)
 
             prompt = f"""
-            이 원룸에 대한 인테리어 디자인 가이드를 작성해주세요.
+            이 원룸에 대한 {style} 인테리어 디자인 가이드를 JSON으로 작성해주세요.
 
-            현재 분석 결과:
-            - 방 타입: {analysis.get('room_type')}
-            - 크기: {analysis.get('size_estimate')}
-            - 문제점: {', '.join(analysis.get('issues', []))}
-            - 장점: {', '.join(analysis.get('strengths', []))}
+            현재 분석: {json.dumps(analysis, ensure_ascii=False)}
 
-            원하는 스타일: {style}
-
-            다음 항목을 포함해주세요:
-            - recommendations: 추천사항 목록
-            - layout_suggestions: 동선을 고려한 레이아웃 제안 상세 설명
-            - color_scheme: 스타일에 맞는 색상 배치 제안
-            - furniture_suggestions: 공간 최적화 및 수납을 위한 가구 제안 목록
+            JSON 형식:
+            {{
+                "recommendations": ["추천1", "추천2"],
+                "layout_suggestions": "레이아웃 제안",
+                "color_scheme": "색상 제안",
+                "furniture_suggestions": ["가구1", "가구2"]
+            }}
             """
 
-            # Structured Output 사용
             response = self.model.generate_content(
                 [prompt, img],
                 generation_config=genai_old.GenerationConfig(
-                    response_mime_type="application/json",
-                    response_schema=self.design_guide_schema
+                    response_mime_type="application/json"
                 )
             )
 
-            # JSON 자동 파싱 (Structured Output은 항상 유효한 JSON 반환)
-            return json.loads(response.text)
+            result = json.loads(response.text)
+            logger.info(f"Design guide generated for {style}")
+            return result
 
         except Exception as e:
+            logger.error(f"Design guide generation failed: {str(e)}", exc_info=True)
             raise Exception(f"디자인 가이드 생성 중 오류 발생: {str(e)}")
 
     async def generate_interior_image(

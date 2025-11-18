@@ -1,0 +1,42 @@
+"""애플리케이션 설정"""
+from pydantic_settings import BaseSettings
+from typing import List
+
+
+class Settings(BaseSettings):
+    """환경변수 기반 설정"""
+
+    # API Keys
+    gemini_api_key: str
+
+    # Application
+    app_name: str = "Interior Design API"
+    app_version: str = "1.0.0"
+    debug: bool = False
+
+    # Server
+    host: str = "0.0.0.0"
+    port: int = 8000
+
+    # CORS
+    cors_origins: List[str] = ["http://localhost:3000", "http://localhost:8000"]
+
+    # File Upload
+    max_upload_size_mb: int = 10
+    allowed_extensions: List[str] = [".jpg", ".jpeg", ".png", ".webp"]
+
+    # Gemini API
+    gemini_concurrent_requests: int = 2
+    gemini_retry_attempts: int = 2
+    gemini_timeout_seconds: int = 20
+
+    # Logging
+    log_level: str = "INFO"
+
+    class Config:
+        env_file = ".env"
+        case_sensitive = False
+
+
+# 전역 설정 인스턴스
+settings = Settings()
