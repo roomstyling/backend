@@ -54,6 +54,12 @@ async def home(request: Request):
     return templates.TemplateResponse("index.html", {"request": request})
 
 
+@app.get("/test")
+async def test_page(request: Request):
+    """Multi-Style 테스트 페이지"""
+    return templates.TemplateResponse("test.html", {"request": request})
+
+
 @app.get("/health")
 async def health_check():
     """헬스 체크 및 시스템 상태"""

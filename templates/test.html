@@ -1,0 +1,584 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI 인테리어 - Multi-Style 테스트</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Noto Sans KR', sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 20px;
+            padding: 40px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+        }
+
+        h1 {
+            text-align: center;
+            color: #333;
+            margin-bottom: 10px;
+            font-size: 2.5em;
+        }
+
+        .subtitle {
+            text-align: center;
+            color: #666;
+            margin-bottom: 40px;
+            font-size: 1.1em;
+        }
+
+        .badge {
+            display: inline-block;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 5px 15px;
+            border-radius: 20px;
+            font-size: 0.9em;
+            margin-left: 10px;
+        }
+
+        .upload-section {
+            margin-bottom: 30px;
+            padding: 30px;
+            background: #f8f9fa;
+            border-radius: 15px;
+            border: 2px dashed #ccc;
+        }
+
+        .upload-area {
+            border: 3px dashed #ccc;
+            border-radius: 10px;
+            padding: 60px 40px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.3s;
+            background: white;
+        }
+
+        .upload-area:hover {
+            border-color: #667eea;
+            background: #f0f4ff;
+        }
+
+        .upload-area.dragover {
+            border-color: #667eea;
+            background: #e8eeff;
+            transform: scale(1.02);
+        }
+
+        input[type="file"] {
+            display: none;
+        }
+
+        .preview-image {
+            max-width: 100%;
+            max-height: 300px;
+            margin-top: 20px;
+            border-radius: 10px;
+            display: none;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+        }
+
+        .btn {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 18px 50px;
+            font-size: 1.2em;
+            font-weight: 600;
+            border-radius: 12px;
+            cursor: pointer;
+            transition: all 0.3s;
+            display: block;
+            margin: 30px auto;
+            box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
+        }
+
+        .btn:hover:not(:disabled) {
+            transform: translateY(-3px);
+            box-shadow: 0 8px 25px rgba(102, 126, 234, 0.5);
+        }
+
+        .btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 50px;
+            display: none;
+        }
+
+        .spinner {
+            border: 5px solid #f3f3f3;
+            border-top: 5px solid #667eea;
+            border-radius: 50%;
+            width: 70px;
+            height: 70px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 20px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .progress-text {
+            font-size: 1.1em;
+            color: #555;
+            margin-top: 15px;
+        }
+
+        .timer {
+            font-size: 2em;
+            font-weight: bold;
+            color: #667eea;
+            margin-top: 10px;
+        }
+
+        .stats {
+            display: flex;
+            justify-content: center;
+            gap: 30px;
+            margin-top: 20px;
+            flex-wrap: wrap;
+        }
+
+        .stat-item {
+            background: white;
+            padding: 15px 25px;
+            border-radius: 10px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+
+        .stat-label {
+            font-size: 0.9em;
+            color: #888;
+        }
+
+        .stat-value {
+            font-size: 1.5em;
+            font-weight: bold;
+            color: #667eea;
+            margin-top: 5px;
+        }
+
+        .results {
+            display: none;
+            margin-top: 40px;
+        }
+
+        .results h2 {
+            color: #333;
+            margin-bottom: 30px;
+            text-align: center;
+            font-size: 2em;
+        }
+
+        .results-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 25px;
+            margin-top: 30px;
+        }
+
+        .result-card {
+            background: #f8f9fa;
+            border-radius: 15px;
+            padding: 20px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+            transition: transform 0.3s;
+        }
+
+        .result-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 8px 20px rgba(0,0,0,0.15);
+        }
+
+        .result-card.success {
+            border: 2px solid #4CAF50;
+        }
+
+        .result-card.failed {
+            border: 2px solid #f44336;
+            opacity: 0.7;
+        }
+
+        .style-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+        }
+
+        .style-name {
+            font-size: 1.3em;
+            font-weight: 600;
+            color: #333;
+        }
+
+        .status-badge {
+            padding: 5px 12px;
+            border-radius: 20px;
+            font-size: 0.85em;
+            font-weight: 600;
+        }
+
+        .status-badge.success {
+            background: #4CAF50;
+            color: white;
+        }
+
+        .status-badge.failed {
+            background: #f44336;
+            color: white;
+        }
+
+        .result-image {
+            width: 100%;
+            border-radius: 10px;
+            margin-bottom: 15px;
+            cursor: pointer;
+        }
+
+        .generation-time {
+            text-align: center;
+            color: #666;
+            font-size: 0.9em;
+            margin-top: 10px;
+        }
+
+        .analysis-text {
+            margin-top: 15px;
+            padding: 15px;
+            background: white;
+            border-radius: 8px;
+            font-size: 0.9em;
+            color: #555;
+            line-height: 1.6;
+            max-height: 150px;
+            overflow-y: auto;
+        }
+
+        .error-message {
+            color: #f44336;
+            padding: 10px;
+            background: #ffebee;
+            border-radius: 5px;
+            margin-top: 10px;
+        }
+
+        .error {
+            background: #ffebee;
+            color: #c62828;
+            padding: 20px;
+            border-radius: 10px;
+            margin-top: 20px;
+            display: none;
+            border-left: 4px solid #f44336;
+        }
+
+        .success-banner {
+            background: #e8f5e9;
+            color: #2e7d32;
+            padding: 20px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+            border-left: 4px solid #4CAF50;
+            display: none;
+        }
+
+        /* Modal for full image */
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0,0,0,0.9);
+        }
+
+        .modal-content {
+            margin: auto;
+            display: block;
+            max-width: 90%;
+            max-height: 90%;
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+        }
+
+        .close {
+            position: absolute;
+            top: 30px;
+            right: 50px;
+            color: #f1f1f1;
+            font-size: 50px;
+            font-weight: bold;
+            cursor: pointer;
+        }
+
+        .close:hover {
+            color: #bbb;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🏠 AI 인테리어 Multi-Style 생성 <span class="badge">ALL 5 STYLES</span></h1>
+        <p class="subtitle">원룸 사진 1개를 업로드하면 5가지 스타일의 인테리어 이미지를 한 번에 생성합니다</p>
+
+        <!-- Upload Section -->
+        <div class="upload-section">
+            <h3 style="margin-bottom: 20px; color: #333;">📸 원룸 사진 업로드</h3>
+            <div class="upload-area" id="uploadArea">
+                <div style="font-size: 3em; margin-bottom: 10px;">📷</div>
+                <p style="font-size: 1.2em; color: #333; font-weight: 500;">클릭하거나 파일을 드래그하여 업로드</p>
+                <p style="color: #999; margin-top: 10px;">JPG, PNG, WEBP 형식 지원 (최대 10MB)</p>
+                <input type="file" id="fileInput" accept="image/jpeg,image/png,image/webp">
+            </div>
+            <img id="previewImage" class="preview-image" alt="미리보기">
+        </div>
+
+        <!-- Generate Button -->
+        <button class="btn" id="generateBtn" disabled>✨ 5가지 스타일 모두 생성하기</button>
+
+        <!-- Loading -->
+        <div class="loading" id="loading">
+            <div class="spinner"></div>
+            <p class="progress-text">AI가 5가지 스타일의 인테리어 이미지를 생성하고 있습니다...</p>
+            <div class="timer" id="timer">0초</div>
+            <p style="color: #888; margin-top: 10px;">병렬 처리로 빠르게 생성 중입니다</p>
+        </div>
+
+        <!-- Results -->
+        <div class="results" id="results">
+            <div class="success-banner" id="successBanner">
+                <strong>✓ 생성 완료!</strong>
+                <div class="stats" id="stats" style="margin-top: 15px;"></div>
+            </div>
+
+            <h2>🎨 생성된 인테리어 디자인</h2>
+            <div class="results-grid" id="resultsGrid"></div>
+        </div>
+
+        <!-- Error -->
+        <div class="error" id="error"></div>
+    </div>
+
+    <!-- Image Modal -->
+    <div id="imageModal" class="modal">
+        <span class="close" id="closeModal">&times;</span>
+        <img class="modal-content" id="modalImage">
+    </div>
+
+    <script>
+        let uploadedFile = null;
+        let startTime = null;
+        let timerInterval = null;
+
+        // Upload area interactions
+        const uploadArea = document.getElementById('uploadArea');
+        const fileInput = document.getElementById('fileInput');
+        const previewImage = document.getElementById('previewImage');
+        const generateBtn = document.getElementById('generateBtn');
+
+        uploadArea.addEventListener('click', () => fileInput.click());
+
+        uploadArea.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            uploadArea.classList.add('dragover');
+        });
+
+        uploadArea.addEventListener('dragleave', () => {
+            uploadArea.classList.remove('dragover');
+        });
+
+        uploadArea.addEventListener('drop', async (e) => {
+            e.preventDefault();
+            uploadArea.classList.remove('dragover');
+            const file = e.dataTransfer.files[0];
+            if (file) handleFile(file);
+        });
+
+        fileInput.addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            if (file) handleFile(file);
+        });
+
+        function handleFile(file) {
+            uploadedFile = file;
+
+            // Preview
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                previewImage.src = e.target.result;
+                previewImage.style.display = 'block';
+            };
+            reader.readAsDataURL(file);
+
+            // Enable generate button
+            generateBtn.disabled = false;
+        }
+
+        // Generate all styles
+        generateBtn.addEventListener('click', async () => {
+            if (!uploadedFile) return;
+
+            const loading = document.getElementById('loading');
+            const results = document.getElementById('results');
+            const error = document.getElementById('error');
+
+            try {
+                // Reset UI
+                generateBtn.disabled = true;
+                loading.style.display = 'block';
+                results.style.display = 'none';
+                error.style.display = 'none';
+
+                // Start timer
+                startTime = Date.now();
+                timerInterval = setInterval(updateTimer, 100);
+
+                // Create FormData
+                const formData = new FormData();
+                formData.append('file', uploadedFile);
+
+                // Call API
+                const response = await fetch('/api/get_styled_images', {
+                    method: 'POST',
+                    body: formData
+                });
+
+                const data = await response.json();
+
+                if (!response.ok) {
+                    throw new Error(data.detail || 'API 요청 실패');
+                }
+
+                // Stop timer
+                clearInterval(timerInterval);
+
+                // Display results
+                displayResults(data);
+                results.style.display = 'block';
+
+            } catch (err) {
+                clearInterval(timerInterval);
+                showError('생성 실패: ' + err.message);
+            } finally {
+                loading.style.display = 'none';
+                generateBtn.disabled = false;
+            }
+        });
+
+        function updateTimer() {
+            const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
+            document.getElementById('timer').textContent = elapsed + '초';
+        }
+
+        function displayResults(data) {
+            const successBanner = document.getElementById('successBanner');
+            const stats = document.getElementById('stats');
+            const grid = document.getElementById('resultsGrid');
+
+            // Success banner with stats
+            successBanner.style.display = 'block';
+            stats.innerHTML = `
+                <div class="stat-item">
+                    <div class="stat-label">처리 시간</div>
+                    <div class="stat-value">${data.processing_time}초</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-label">총 스타일</div>
+                    <div class="stat-value">${data.total_styles}개</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-label">성공</div>
+                    <div class="stat-value" style="color: #4CAF50;">${data.successful_styles}개</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-label">실패</div>
+                    <div class="stat-value" style="color: #f44336;">${data.failed_styles}개</div>
+                </div>
+            `;
+
+            // Results grid
+            grid.innerHTML = data.results.map(result => {
+                if (result.success) {
+                    return `
+                        <div class="result-card success">
+                            <div class="style-header">
+                                <div class="style-name">${result.style_name}</div>
+                                <div class="status-badge success">✓ 성공</div>
+                            </div>
+                            <img src="/api/images/${result.generated_image}"
+                                 alt="${result.style_name}"
+                                 class="result-image"
+                                 onclick="showModal('/api/images/${result.generated_image}')">
+                            <div class="generation-time">⏱️ ${result.generation_time}초</div>
+                            ${result.analysis ? `
+                                <div class="analysis-text">${result.analysis}</div>
+                            ` : ''}
+                        </div>
+                    `;
+                } else {
+                    return `
+                        <div class="result-card failed">
+                            <div class="style-header">
+                                <div class="style-name">${result.style_name}</div>
+                                <div class="status-badge failed">✗ 실패</div>
+                            </div>
+                            <div class="error-message">${result.error || '생성 실패'}</div>
+                        </div>
+                    `;
+                }
+            }).join('');
+        }
+
+        function showError(message) {
+            const error = document.getElementById('error');
+            error.textContent = message;
+            error.style.display = 'block';
+        }
+
+        // Modal for full image view
+        function showModal(imageSrc) {
+            const modal = document.getElementById('imageModal');
+            const modalImage = document.getElementById('modalImage');
+            modal.style.display = 'block';
+            modalImage.src = imageSrc;
+        }
+
+        document.getElementById('closeModal').addEventListener('click', () => {
+            document.getElementById('imageModal').style.display = 'none';
+        });
+
+        document.getElementById('imageModal').addEventListener('click', (e) => {
+            if (e.target.id === 'imageModal') {
+                document.getElementById('imageModal').style.display = 'none';
+            }
+        });
+    </script>
+</body>
+</html>
