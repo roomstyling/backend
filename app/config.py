@@ -26,9 +26,9 @@ class Settings(BaseSettings):
     allowed_extensions: List[str] = [".jpg", ".jpeg", ".png", ".webp"]
 
     # Gemini API
-    gemini_concurrent_requests: int = 5  # 5개 스타일 모두 병렬 처리
+    gemini_concurrent_requests: int = 2  # 2개씩 병렬 처리 (Gemini 3 Pro Image는 무거워서 과부하 방지)
     gemini_retry_attempts: int = 3  # 3회 재시도 (이미지 생성 실패 대비)
-    gemini_timeout_seconds: int = 60  # 보수적으로 60초 설정 (Gemini 3 Pro는 더 느림)
+    gemini_timeout_seconds: int = 90  # Gemini 3 Pro Image는 더 느려서 90초로 증가
 
     # Logging
     log_level: str = "INFO"
