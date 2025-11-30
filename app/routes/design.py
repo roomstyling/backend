@@ -2,7 +2,9 @@ from fastapi import APIRouter, UploadFile, File, HTTPException
 from fastapi.responses import JSONResponse, FileResponse
 import os
 import uuid
-from typing import List
+import asyncio
+import time
+from typing import List, Dict, Any
 from pathlib import Path
 from ..models.schemas import (
     StyleOption,
@@ -12,6 +14,8 @@ from ..models.schemas import (
     DesignGuide
 )
 from ..services.gemini_service import get_gemini_service
+from ..config import settings
+from ..utils.logger import logger
 
 router = APIRouter(prefix="/api", tags=["design"])
 
@@ -58,17 +62,35 @@ async def get_styles():
 
 @router.post("/upload")
 async def upload_image(file: UploadFile = File(...)):
-    """원룸 사진 업로드"""
+    """원룸 사진 업로드 (파일 크기 제한 포함)"""
     try:
-        # 파일 확장자 검증
-        allowed_extensions = {".jpg", ".jpeg", ".png", ".webp"}
-        file_ext = os.path.splitext(file.filename)[1].lower()
+        logger.info(f"Upload requested: {file.filename}")
 
-        if file_ext not in allowed_extensions:
+        # 파일 확장자 검증
+        file_ext = os.path.splitext(file.filename)[1].lower()
+        if file_ext not in settings.allowed_extensions:
+            logger.warning(f"Invalid file extension: {file_ext}")
             raise HTTPException(
                 status_code=400,
-                detail=f"지원하지 않는 파일 형식입니다. 허용된 형식: {', '.join(allowed_extensions)}"
+                detail=f"지원하지 않는 파일 형식입니다. 허용된 형식: {', '.join(settings.allowed_extensions)}"
             )
+
+        # 파일 크기 제한 (청크로 읽으면서 검증)
+        max_size = settings.max_upload_size_mb * 1024 * 1024
+        content = bytearray()
+        chunk_size = 1024 * 1024  # 1MB chunks
+
+        while True:
+            chunk = await file.read(chunk_size)
+            if not chunk:
+                break
+            content.extend(chunk)
+            if len(content) > max_size:
+                logger.warning(f"File too large: {len(content)} bytes")
+                raise HTTPException(
+                    status_code=413,
+                    detail=f"파일 크기가 너무 큽니다. 최대 {settings.max_upload_size_mb}MB까지 허용됩니다."
+                )
 
         # 고유한 파일명 생성
         unique_filename = f"{uuid.uuid4()}{file_ext}"
@@ -76,18 +98,21 @@ async def upload_image(file: UploadFile = File(...)):
 
         # 파일 저장
         with open(str(file_path), "wb") as buffer:
-            content = await file.read()
             buffer.write(content)
+
+        logger.info(f"File uploaded successfully: {unique_filename} ({len(content)} bytes)")
 
         return JSONResponse(content={
             "success": True,
             "filename": unique_filename,
-            "message": "이미지가 성공적으로 업로드되었습니다."
+            "message": "이미지가 성공적으로 업로드되었습니다.",
+            "size_bytes": len(content)
         })
 
     except HTTPException:
         raise
     except Exception as e:
+        logger.error(f"Upload failed: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"파일 업로드 실패: {str(e)}")
 
 
@@ -212,3 +237,169 @@ async def get_image(filename: str):
         raise HTTPException(status_code=404, detail="이미지를 찾을 수 없습니다.")
 
     return FileResponse(str(file_path))
+
+
+@router.post("/get_styled_images")
+async def get_styled_images(file: UploadFile = File(...)):
+    """
+    이미지 1개를 업로드하면 모든 스타일(5개)의 합성 결과를 반환
+    타임아웃: 설정 기반 (기본 20초)
+
+    Returns:
+        {
+            "success": bool,
+            "original_image": str,
+            "processing_time": float,
+            "results": [...]
+        }
+    """
+    start_time = time.time()
+    file_path = None
+
+    try:
+        logger.info(f"Multi-style generation requested: {file.filename}")
+
+        # 1. 파일 검증 및 저장
+        file_ext = os.path.splitext(file.filename)[1].lower()
+
+        if file_ext not in settings.allowed_extensions:
+            logger.warning(f"Invalid extension for multi-style: {file_ext}")
+            raise HTTPException(
+                status_code=400,
+                detail=f"지원하지 않는 파일 형식입니다. 허용된 형식: {', '.join(settings.allowed_extensions)}"
+            )
+
+        # 파일 크기 검증
+        max_size = settings.max_upload_size_mb * 1024 * 1024
+        content = bytearray()
+        chunk_size = 1024 * 1024
+
+        while True:
+            chunk = await file.read(chunk_size)
+            if not chunk:
+                break
+            content.extend(chunk)
+            if len(content) > max_size:
+                logger.warning(f"File too large in multi-style: {len(content)} bytes")
+                raise HTTPException(
+                    status_code=413,
+                    detail=f"파일 크기가 너무 큽니다. 최대 {settings.max_upload_size_mb}MB까지 허용됩니다."
+                )
+
+        # 고유한 파일명 생성
+        unique_filename = f"{uuid.uuid4()}{file_ext}"
+        file_path = UPLOAD_DIR / unique_filename
+
+        # 파일 저장
+        with open(str(file_path), "wb") as buffer:
+            buffer.write(content)
+
+        logger.info(f"File saved for multi-style: {unique_filename} ({len(content)} bytes)")
+
+        # 2. 모든 스타일에 대해 병렬로 이미지 생성 (설정 기반 동시 요청 수 제한)
+        gemini = get_gemini_service()
+
+        # Gemini API Rate Limiting 방지
+        semaphore = asyncio.Semaphore(settings.gemini_concurrent_requests)
+        logger.info(f"Using semaphore with {settings.gemini_concurrent_requests} concurrent requests")
+
+        async def generate_for_style(style: StyleOption) -> Dict[str, Any]:
+            """단일 스타일에 대한 이미지 생성 (Retry 로직 포함)"""
+            async with semaphore:
+                for attempt in range(settings.gemini_retry_attempts):
+                    try:
+                        logger.info(f"Generating {style.name} (attempt {attempt + 1}/{settings.gemini_retry_attempts})")
+                        style_start = time.time()
+
+                        result = await gemini.generate_interior_image(
+                            str(file_path),
+                            style.name,
+                            style.description
+                        )
+
+                        style_time = time.time() - style_start
+                        logger.info(f"{style.name} completed in {style_time:.2f}s")
+
+                        return {
+                            "style_id": style.id,
+                            "style_name": style.name,
+                            "generated_image": result.get('filename', ''),
+                            "analysis": result.get('analysis', ''),
+                            "success": True,
+                            "generation_time": round(style_time, 2)
+                        }
+                    except Exception as e:
+                        error_msg = str(e)
+                        logger.warning(f"{style.name} failed (attempt {attempt + 1}/{settings.gemini_retry_attempts}): {error_msg}")
+
+                        # 마지막 시도가 아니면 재시도
+                        if attempt < settings.gemini_retry_attempts - 1:
+                            # 503, rate limit, 또는 이미지 생성 실패 모두 재시도
+                            if ("503" in error_msg or
+                                "rate" in error_msg.lower() or
+                                "quota" in error_msg.lower() or
+                                "이미지를 생성하지 못했습니다" in error_msg or
+                                "텍스트만 반환" in error_msg):
+
+                                wait_time = 2 * (attempt + 1)  # 2s, 4s, 6s
+                                logger.info(f"{style.name} 재시도 대기 중... ({wait_time}초 후)")
+                                await asyncio.sleep(wait_time)
+                                continue
+
+                        # 최종 실패 (재시도 모두 소진 또는 재시도 불가능한 에러)
+                        logger.error(f"{style.name} FAILED after {attempt + 1} attempts")
+                        return {
+                            "style_id": style.id,
+                            "style_name": style.name,
+                            "generated_image": "",
+                            "analysis": "",
+                            "success": False,
+                            "error": error_msg
+                        }
+
+        # 3. 병렬 실행 with 설정 기반 타임아웃
+        try:
+            logger.info(f"Starting parallel generation with {settings.gemini_timeout_seconds}s timeout")
+            results = await asyncio.wait_for(
+                asyncio.gather(*[generate_for_style(style) for style in STYLE_OPTIONS]),
+                timeout=settings.gemini_timeout_seconds
+            )
+        except asyncio.TimeoutError:
+            logger.error(f"Timeout after {settings.gemini_timeout_seconds}s")
+            raise HTTPException(
+                status_code=408,
+                detail=f"이미지 생성 시간이 {settings.gemini_timeout_seconds}초를 초과했습니다. 일부 스타일은 생성되지 않았을 수 있습니다."
+            )
+
+        processing_time = time.time() - start_time
+
+        # 성공/실패 통계
+        success_count = sum(1 for r in results if r.get('success', False))
+        fail_count = len(results) - success_count
+
+        logger.info(f"Multi-style generation completed in {processing_time:.2f}s: {success_count} success, {fail_count} failed")
+
+        return JSONResponse(content={
+            "success": True,
+            "original_image": unique_filename,
+            "processing_time": round(processing_time, 2),
+            "total_styles": len(results),
+            "successful_styles": success_count,
+            "failed_styles": fail_count,
+            "results": results
+        })
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Multi-style generation error: {str(e)}", exc_info=True)
+
+        # 실패 시 임시 파일 정리
+        if file_path and file_path.exists():
+            try:
+                file_path.unlink()
+                logger.info(f"Cleaned up failed upload: {file_path}")
+            except Exception as cleanup_error:
+                logger.warning(f"Failed to cleanup file: {cleanup_error}")
+
+        raise HTTPException(status_code=500, detail=f"처리 실패: {str(e)}")

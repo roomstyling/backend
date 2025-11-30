@@ -151,41 +151,78 @@ class GeminiService:
                 "approach": "공간의 가능성을 최대한 이끌어내기"
             })
 
-            # 이미지 생성 중심 프롬프트 (간결하고 명확하게)
-            prompt = f"""**IMPORTANT: You MUST generate an image. Do not provide text-only response.**
+            # 전문 인테리어 디자이너 프롬프트
+            prompt = f"""
+You are an award-winning interior designer with 15+ years of experience specializing in residential spaces.
+You've completed over 500 successful room transformations and are known for your ability to see potential in every space.
 
-Transform this room into {style} style interior design.
+=== YOUR MISSION ===
+Transform this room with {style} style while respecting its unique character.
 
-Style essence: {style_info['essence']}
-Approach: {style_info['approach']}
+{style} 스타일의 본질: {style_info['essence']}
+디자인 철학: {style_info['approach']}
 
-**IMAGE GENERATION REQUIREMENTS:**
-1. Keep the same room layout and structure
-2. Apply {style} style to walls, floors, furniture, and decor
-3. Maintain realistic lighting and proportions
-4. Make it look professional and livable
+=== YOUR DESIGN PROCESS ===
 
-**STYLE GUIDELINES:**
-- {style} 스타일의 핵심 특징을 반영하세요
-- 자연스럽고 현실적인 공간으로 만드세요
-- 과도하게 꾸미지 말고 실제 거주 가능한 느낌으로
+First, study this room like you're meeting a new client. Look deeply:
+- What makes this space special? What's already working well?
+- What's holding it back? Where's the friction in daily life?
+- How does the light move through the space? What's the flow?
+- If you lived here, what would frustrate you? What would delight you?
 
-**OUTPUT:**
-- Generate the transformed room image showing {style} style
-- Add a brief analysis in Korean (2-3 sentences) explaining the key changes
+Then, envision the transformation:
+- How can {style} style solve the real problems here?
+- What elements should stay because they're perfect as-is?
+- What small changes would make the biggest impact?
+- Where can you add personality without overcrowding?
+- How to make this feel authentically {style}, not like a magazine copy?
 
-**CRITICAL: You MUST return an image. Generate the {style} interior design image now.**
+=== DESIGN GUIDELINES (your creative intuition, not rigid rules) ===
+
+Respect what works:
+The best designers know when to leave things alone. If the natural light is beautiful, enhance it. If there's a good furniture piece, work with it. Don't change for change's sake.
+
+Solve real problems:
+Bad lighting? Fix it. Awkward flow? Rearrange. Cluttered? Simplify. Each change should have a purpose.
+
+Add {style} authentically:
+This isn't about checking boxes (white walls = minimalist). It's about capturing the feeling. What makes {style} spaces feel the way they do? That's what you're after.
+
+Stay grounded in reality:
+This room needs to work for real life. Beautiful but livable. Stylish but comfortable. Instagram-worthy but actually functional.
+
+=== YOUR DELIVERABLE (한국어로 작성) ===
+
+전문가 분석:
+
+1. 원본 공간의 가능성
+   - 이 공간만의 매력 포인트 (반드시 살려야 할 것)
+   - 현재 방해 요소 (개선이 필요한 부분)
+   - 전반적인 공간 느낌과 잠재력
+
+2. {style} 스타일 디자인 제안
+   - 핵심 변화: 가장 임팩트 있는 3가지 개선사항
+   - 색감과 소재: 어떤 톤과 질감으로 {style} 감성을 담을지
+   - 디테일: 작지만 중요한 터치 (조명, 소품, 텍스처 등)
+   - 추가/변경 가구 (필요한 경우만, 구체적인 이유와 함께)
+
+3. 디자이너의 한 마디
+   - 이 디자인이 거주자의 삶을 어떻게 개선할지
+
+Now, generate the transformed image that brings this vision to life.
+Make it feel lived-in, not staged. Real, not fake. {style}, not stereotypical.
             """
 
-            logger.info(f"Generating {style} image with Gemini 3 Pro")
+            print(f"Generating image with prompt: {prompt[:150]}...")
 
-            # Gemini 3 Pro로 이미지 생성 (명시적 설정)
+            # Gemini 3 pro로 이미지 편집
             response = self.client.models.generate_content(
                 model="gemini-3-pro-image-preview",
                 contents=[prompt, original_image],
             )
 
-            logger.info(f"Response received for {style}")
+            print(f"DEBUG: Response type: {type(response)}")
+            print(f"DEBUG: Response attributes: {dir(response)}")
 
             # 응답에서 이미지 데이터 추출 및 저장
             import uuid
@@ -258,18 +295,15 @@ Approach: {style_info['approach']}
                                 raise
 
             if not image_found:
-                # 이미지가 없을 때 텍스트 응답 로그
-                logger.error(f"{style} 이미지 생성 실패 - 텍스트 응답: {analysis_text[:200] if analysis_text else 'No text'}")
-                raise Exception(f"이미지를 생성하지 못했습니다. API가 텍스트만 반환했습니다. 프롬프트를 조정하거나 다시 시도하세요.")
+                raise Exception("Gemini가 이미지를 생성하지 못했습니다. 텍스트 응답만 반환되었습니다.")
 
-            logger.info(f"{style} 이미지 생성 성공: {filename}")
             return {
                 'filename': filename,
                 'analysis': analysis_text.strip() if analysis_text else "분석 내용이 생성되지 않았습니다."
             }
 
         except Exception as e:
-            logger.error(f"{style} 이미지 생성 실패: {type(e).__name__}: {str(e)}", exc_info=True)
+            print(f"Error in generate_interior_image: {type(e).__name__}: {str(e)}")
             raise Exception(f"인테리어 이미지 생성 중 오류 발생: {str(e)}")
 
 
