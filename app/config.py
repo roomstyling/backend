@@ -28,7 +28,7 @@ class Settings(BaseSettings):
     # Gemini API
     gemini_concurrent_requests: int = 2
     gemini_retry_attempts: int = 2
-    gemini_timeout_seconds: int = 20
+    gemini_timeout_seconds: int = 60  # 보수적으로 60초 설정 (Gemini 3 Pro는 더 느림)
 
     # Logging
     log_level: str = "INFO"

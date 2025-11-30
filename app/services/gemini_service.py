@@ -215,9 +215,9 @@ Make it feel lived-in, not staged. Real, not fake. {style}, not stereotypical.
 
             print(f"Generating image with prompt: {prompt[:150]}...")
 
-            # Gemini 2.5 Flash Image로 이미지 편집
+            # Gemini 3 Pro로 이미지 편집
             response = self.client.models.generate_content(
-                model="gemini-2.5-flash-image",
+                model="gemini-3-pro-image-preview",
                 contents=[prompt, original_image],
             )
 
