@@ -330,16 +330,23 @@ async def get_styled_images(file: UploadFile = File(...)):
                         }
                     except Exception as e:
                         error_msg = str(e)
-                        logger.warning(f"{style.name} failed (attempt {attempt + 1}): {error_msg}")
+                        logger.warning(f"{style.name} failed (attempt {attempt + 1}/{settings.gemini_retry_attempts}): {error_msg}")
 
-                        # 503 에러거나 rate limit 에러면 재시도
-                        if ("503" in error_msg or "rate" in error_msg.lower() or "quota" in error_msg.lower()) and attempt < settings.gemini_retry_attempts - 1:
-                            wait_time = (2 ** attempt)  # Exponential backoff: 1s, 2s
-                            logger.info(f"Rate limit hit for {style.name}, retrying in {wait_time}s...")
-                            await asyncio.sleep(wait_time)
-                            continue
+                        # 마지막 시도가 아니면 재시도
+                        if attempt < settings.gemini_retry_attempts - 1:
+                            # 503, rate limit, 또는 이미지 생성 실패 모두 재시도
+                            if ("503" in error_msg or
+                                "rate" in error_msg.lower() or
+                                "quota" in error_msg.lower() or
+                                "이미지를 생성하지 못했습니다" in error_msg or
+                                "텍스트만 반환" in error_msg):
 
-                        # 최종 실패
+                                wait_time = 2 * (attempt + 1)  # 2s, 4s, 6s
+                                logger.info(f"{style.name} 재시도 대기 중... ({wait_time}초 후)")
+                                await asyncio.sleep(wait_time)
+                                continue
+
+                        # 최종 실패 (재시도 모두 소진 또는 재시도 불가능한 에러)
                         logger.error(f"{style.name} FAILED after {attempt + 1} attempts")
                         return {
                             "style_id": style.id,
