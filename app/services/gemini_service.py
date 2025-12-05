@@ -3,7 +3,7 @@ import google.generativeai as genai_old
 from google import genai
 from google.genai import types
 from PIL import Image
-from typing import Dict, Any, Optional
+from typing import Dict, Any
 import json
 import base64
 from io import BytesIO
@@ -120,11 +120,9 @@ class GeminiService:
     async def generate_interior_image(
         self,
         image_path: str,
-        style: str,
-        style_description: str,
-        room_analysis: Optional[Dict[str, Any]] = None
+        style: str
     ) -> dict:
-        """인테리어 스타일이 적용된 이미지 생성 (Gemini 2.5 Flash Image 사용)
+        """인테리어 스타일이 적용된 이미지 생성 (Gemini 3 Pro Image 사용)
 
         Returns:
             dict: {
@@ -136,102 +134,18 @@ class GeminiService:
             # 원본 이미지 로드
             original_image = Image.open(image_path)
 
-            # 스타일별 핵심 감성 및 접근법
-            style_essence = {
-                "미니멀리스트": {
-                    "essence": "Less is more. 공간의 여백이 주는 평온함과 심플한 라인의 우아함",
-                    "approach": "불필요한 것을 덜어내되, 남은 것은 완벽하게. 기능과 미학의 조화"
-                },
-                "스칸디나비안": {
-                    "essence": "자연광과 나무의 따뜻함, 휘게(Hygge) 문화의 아늑함",
-                    "approach": "자연 소재와 밝은 톤으로 북유럽의 여유로움을 담아내기"
-                },
-                "모던": {
-                    "essence": "현대적 세련미와 기하학적 정교함, 도시적 감각",
-                    "approach": "깔끔한 라인과 중성적 색감으로 시대를 초월하는 모던함 표현"
-                },
-                "빈티지": {
-                    "essence": "시간이 만들어낸 이야기와 감성, 레트로의 낭만",
-                    "approach": "앤티크한 디테일과 따뜻한 색감으로 추억을 불러일으키는 공간"
-                },
-                "인더스트리얼": {
-                    "essence": "날것의 재료가 주는 솔직함과 거친 매력, 도시 로프트 감성",
-                    "approach": "노출된 구조와 원자재의 질감으로 날것의 아름다움 강조"
-                }
-            }
+            # 이미지 생성 프롬프트
+            prompt = f"""Transform this room into {style} style interior design.
 
-            style_info = style_essence.get(style, {
-                "essence": style_description,
-                "approach": "공간의 가능성을 최대한 이끌어내기"
-            })
+CRITICAL: Keep the original room structure intact:
+- Same walls, windows, doors, ceiling, floor positions
+- Same camera angle and viewpoint
+- Same architectural elements
 
-            # 방 분석 정보 추가 (있는 경우)
-            analysis_context = ""
-            if room_analysis:
-                analysis_context = f"""
-ROOM ANALYSIS (ABSOLUTELY PRESERVE - DO NOT CHANGE):
-- Structure: {room_analysis.get('room_structure', 'N/A')}
-- Layout: {room_analysis.get('spatial_layout', 'N/A')}
-- Building Materials: {room_analysis.get('current_materials', 'N/A')}
-- Key Features: {', '.join(room_analysis.get('key_features', []))}
-- Constraints: {', '.join(room_analysis.get('constraints', []))}
-
-CRITICAL RULES:
-1. NEVER modify room structure (walls, windows, doors, ceiling, floor boundaries)
-2. You CAN change furniture arrangement and items completely
-3. Select furniture that harmonizes with the fixed building materials
-"""
-
-            # 이미지 생성 중심 프롬프트 (간결하고 명확하게)
-            prompt = f"""IMPORTANT: You MUST generate an image. Do not provide text-only response.
-
-Transform this room into {style} style interior design.
-
-Style essence: {style_info['essence']}
-Approach: {style_info['approach']}
-{analysis_context}
-IMAGE GENERATION REQUIREMENTS:
-
-ROOM STRUCTURE (ABSOLUTELY FORBIDDEN TO CHANGE):
-1. NEVER modify walls, windows, doors positions - keep EXACTLY as original
-2. NEVER change ceiling height, floor boundaries, or room dimensions
-3. NEVER add or remove architectural elements (columns, beams, moldings)
-4. PRESERVE the exact spatial layout and room proportions
-5. FIXED building materials (floor/wall/ceiling finishes) must stay visually consistent
-6. CRITICAL: Keep the SAME camera angle and viewpoint as the original photo
-   - Do NOT change the perspective or shooting angle
-   - Maintain the exact same framing and composition
-   - Keep the same field of view and camera position
-
-FURNITURE & DECOR (FREELY CHANGEABLE):
-7. You MUST change and redesign all furniture to match {style} style
-8. Place specific, identifiable furniture items: desk, chair, shelves, curtains, lighting, rugs, etc.
-9. Each furniture piece must be clearly visible and realistic (suitable for product links)
-10. Ensure furniture complements the FIXED building materials:
-   - Wood floors → select furniture with compatible wood tones
-   - Concrete walls → choose furniture with industrial/modern textures
-   - Create visual harmony between fixed materials and movable furniture
-11. Make furniture look purchasable and realistic (avoid abstract/artistic renderings)
-
-STYLE GUIDELINES:
-- Reflect core characteristics of {style} style
-- Create a natural and realistic space suitable for real living
-- Avoid over-decoration - keep it practical and livable
-- Focus ONLY on furniture/decor changes, NOT architectural changes
-
-OUTPUT REQUIREMENTS:
-- Generate the transformed room image with {style} style furniture and decor
-- Keep the SAME room structure (walls, windows, doors, dimensions)
-- Show clear, identifiable furniture pieces that could be sold/linked
-- Ensure visual harmony between fixed building materials and new furniture
-
-CRITICAL FINAL CHECK:
-1. Room structure unchanged? (walls, windows, doors in same positions)
-2. Camera angle and viewpoint identical to original photo?
-3. Furniture clearly visible and realistic?
-4. Building materials and furniture harmonize well?
-
-If YES to all four → Generate the image now.
+Change only the furniture and decor:
+- Replace all furniture to match {style} style
+- Make each piece clearly visible and realistic (suitable for product links)
+- Ensure furniture harmonizes with the existing building materials
             """
 
             logger.info(f"Generating {style} image with Gemini 3 Pro")

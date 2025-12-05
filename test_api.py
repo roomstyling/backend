@@ -36,7 +36,7 @@ class APITester:
 
             start_time = time.time()
             try:
-                response = requests.post(self.api_url, files=files, timeout=30)
+                response = requests.post(self.api_url, files=files, timeout=120)
                 elapsed_time = time.time() - start_time
 
                 if response.status_code == 200:

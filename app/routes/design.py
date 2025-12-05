@@ -203,11 +203,10 @@ async def generate_interior_image(request: DesignRequest):
 
         gemini = get_gemini_service()
 
-        # 인테리어 이미지 생성 (이미지 + 분석 텍스트)
+        # 인테리어 이미지 생성
         result = await gemini.generate_interior_image(
             str(file_path),
-            style.name,
-            style.description
+            style.name
         )
 
         if not result or not result.get('filename'):
@@ -263,11 +262,14 @@ async def get_styled_images(file: UploadFile = File(...)):
 
         logger.info(f"Saved: {unique_filename} ({len(content)} bytes)")
 
-        # 2. 방 분석 (한 번만)
+        # 2. 방 분석 (한 번만) - TEMPORARILY DISABLED per user feedback
+        # gemini = get_gemini_service()
+        # logger.info("Analyzing room structure...")
+        # room_analysis = await gemini.analyze_room(str(file_path))
+        # logger.info(f"Analysis complete: {room_analysis.get('room_structure', '')[:50]}...")
+        room_analysis = None  # Disabled - code kept for future use
+
         gemini = get_gemini_service()
-        logger.info("Analyzing room structure...")
-        room_analysis = await gemini.analyze_room(str(file_path))
-        logger.info(f"Analysis complete: {room_analysis.get('room_structure', '')[:50]}...")
 
         # 3. 모든 스타일에 대해 병렬로 이미지 생성 (설정 기반 동시 요청 수 제한)
         # Gemini API Rate Limiting 방지
@@ -282,9 +284,7 @@ async def get_styled_images(file: UploadFile = File(...)):
                         style_start = time.time()
                         result = await gemini.generate_interior_image(
                             str(file_path),
-                            style.name,
-                            style.description,
-                            room_analysis=room_analysis
+                            style.name
                         )
 
                         return {
