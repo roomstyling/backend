@@ -179,8 +179,10 @@ Approach: {style_info['approach']}
 
             logger.info(f"Generating {style} image with Gemini 3 Pro")
 
-            # Gemini 3 Pro로 이미지 생성 (명시적 설정)
-            response = self.client.models.generate_content(
+            # Gemini 3 Pro로 이미지 생성 (비동기 실행)
+            import asyncio
+            response = await asyncio.to_thread(
+                self.client.models.generate_content,
                 model="gemini-3-pro-image-preview",
                 contents=[prompt, original_image],
             )
@@ -196,71 +198,23 @@ Approach: {style_info['approach']}
             filename = f"generated_{uuid.uuid4()}.png"
             output_path = UPLOAD_DIR / filename
 
-            # parts를 순회하며 텍스트와 이미지 데이터 추출
-            image_found = False
+            # 응답에서 이미지와 텍스트 추출 (간소화)
+            parts = response.candidates[0].content.parts if hasattr(response, 'candidates') else response.parts
             analysis_text = ""
-
-            # 응답 구조 확인
-            if hasattr(response, 'parts'):
-                print("DEBUG: response.parts exists")
-                parts = response.parts
-            elif hasattr(response, 'candidates'):
-                print("DEBUG: Using response.candidates")
-                if response.candidates and len(response.candidates) > 0:
-                    candidate = response.candidates[0]
-                    if hasattr(candidate, 'content') and hasattr(candidate.content, 'parts'):
-                        parts = candidate.content.parts
-                    else:
-                        raise Exception(f"Unexpected candidate structure: {dir(candidate)}")
-                else:
-                    raise Exception("No candidates in response")
-            else:
-                raise Exception(f"Unknown response structure. Attributes: {dir(response)}")
+            image_data = None
 
             for part in parts:
-                if hasattr(part, 'text') and part.text is not None:
-                    # 텍스트 분석 내용 수집
+                if hasattr(part, 'text') and part.text:
                     analysis_text += part.text
-                    print(f"Response text: {part.text[:200]}...")
-                elif hasattr(part, 'inline_data') and part.inline_data is not None:
-                    # 이미지 데이터 발견
-                    print("Image data found in response")
-                    print(f"DEBUG: inline_data type: {type(part.inline_data)}")
-                    print(f"DEBUG: inline_data attributes: {dir(part.inline_data)}")
+                elif hasattr(part, 'inline_data') and part.inline_data:
+                    image_data = part.inline_data.data
 
-                    # inline_data에서 이미지 데이터 추출
-                    if hasattr(part.inline_data, 'data'):
-                        image_data = part.inline_data.data
-                        mime_type = getattr(part.inline_data, 'mime_type', 'image/png')
+            if not image_data:
+                raise Exception(f"이미지 생성 실패. 텍스트만 반환됨: {analysis_text[:100] if analysis_text else 'N/A'}")
 
-                        print(f"DEBUG: MIME type: {mime_type}")
-                        print(f"DEBUG: Image data length: {len(image_data)}")
-
-                        # base64 디코딩 후 PIL Image로 변환
-                        try:
-                            image_bytes = base64.b64decode(image_data)
-                            image = Image.open(BytesIO(image_bytes))
-                            image.save(str(output_path))
-                            print(f"Image saved successfully to: {output_path}")
-                            image_found = True
-                            break
-                        except Exception as img_error:
-                            print(f"DEBUG: Failed to decode/save image: {img_error}")
-                            # base64 디코딩 없이 직접 시도
-                            try:
-                                image = Image.open(BytesIO(image_data))
-                                image.save(str(output_path))
-                                print(f"Image saved successfully (without base64 decode) to: {output_path}")
-                                image_found = True
-                                break
-                            except Exception as img_error2:
-                                print(f"DEBUG: Failed to save image directly: {img_error2}")
-                                raise
-
-            if not image_found:
-                # 이미지가 없을 때 텍스트 응답 로그
-                logger.error(f"{style} 이미지 생성 실패 - 텍스트 응답: {analysis_text[:200] if analysis_text else 'No text'}")
-                raise Exception(f"이미지를 생성하지 못했습니다. API가 텍스트만 반환했습니다. 프롬프트를 조정하거나 다시 시도하세요.")
+            # 이미지 저장 (raw bytes, base64 없음)
+            image = Image.open(BytesIO(image_data))
+            image.save(str(output_path))
 
             logger.info(f"{style} 이미지 생성 성공: {filename}")
             return {
