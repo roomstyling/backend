@@ -23,7 +23,7 @@ class GeminiService:
 
         # 구버전 Gemini 모델 (텍스트/분석용)
         genai_old.configure(api_key=settings.gemini_api_key)
-        self.model = genai_old.GenerativeModel('gemini-2.5-flash-image-preview')
+        self.model = genai_old.GenerativeModel('gemini-3-pro-preview')
 
         # 신버전 Gemini 클라이언트 (이미지 생성용)
         self.client = genai.Client(api_key=settings.gemini_api_key)
@@ -31,33 +31,45 @@ class GeminiService:
         logger.info("GeminiService initialized")
 
     async def analyze_room(self, image_path: str) -> Dict[str, Any]:
-        """원룸 사진 분석 (JSON mode)"""
+        """방 분석 (JSON mode)"""
         try:
             logger.info(f"Analyzing room: {image_path}")
-            img = Image.open(image_path)
 
             prompt = """
-            이 원룸 사진을 분석해주세요. JSON 형식으로 답변하세요.
+            Analyze this room photo and respond in JSON format. Provide all text fields in English.
+
+            Focus on structural and spatial characteristics that are important for interior design transformation:
 
             {
-                "room_type": "원룸/투룸 등 방 타입",
-                "size_estimate": "평수 추정",
-                "current_layout": "현재 레이아웃 설명",
-                "issues": ["문제점1", "문제점2"],
-                "strengths": ["장점1", "장점2"]
+                "room_structure": "Describe walls, windows, doors positions and architectural features in detail",
+                "spatial_layout": "Room shape, dimensions, and spatial characteristics",
+                "current_materials": "Current building materials (BM) - floors, walls, ceiling finishes",
+                "key_features": ["Notable architectural feature 1", "Notable feature 2"],
+                "constraints": ["Design constraint 1", "Design constraint 2"]
             }
+
+            Important: All text values must be in English. Focus on structural details and building materials (BM) that must be preserved during redesign.
             """
 
-            # JSON mode 사용
-            response = self.model.generate_content(
-                [prompt, img],
-                generation_config=genai_old.GenerationConfig(
-                    response_mime_type="application/json"
+            # 비동기 처리
+            import asyncio
+            response = await asyncio.to_thread(
+                lambda: self.model.generate_content(
+                    [prompt, Image.open(image_path)]
                 )
             )
 
-            result = json.loads(response.text)
-            logger.info(f"Room analysis completed: {result.get('room_type', 'unknown')}")
+            # JSON 추출 (마크다운 코드 블록 처리)
+            response_text = response.text.strip()
+            if response_text.startswith("```json"):
+                response_text = response_text[7:]
+            if response_text.startswith("```"):
+                response_text = response_text[3:]
+            if response_text.endswith("```"):
+                response_text = response_text[:-3]
+
+            result = json.loads(response_text.strip())
+            logger.info(f"Room analysis completed: {result.get('room_structure', 'unknown')[:50]}")
             return result
 
         except Exception as e:
@@ -76,24 +88,25 @@ class GeminiService:
             img = Image.open(image_path)
 
             prompt = f"""
-            이 원룸에 대한 {style} 인테리어 디자인 가이드를 JSON으로 작성해주세요.
+            Create an interior design guide for this room in {style} style. Respond in JSON format with all text in Korean.
 
-            현재 분석: {json.dumps(analysis, ensure_ascii=False)}
+            Current analysis: {json.dumps(analysis, ensure_ascii=False)}
 
-            JSON 형식:
+            JSON format:
             {{
-                "recommendations": ["추천1", "추천2"],
-                "layout_suggestions": "레이아웃 제안",
-                "color_scheme": "색상 제안",
-                "furniture_suggestions": ["가구1", "가구2"]
+                "recommendations": ["Recommendation 1", "Recommendation 2", "Recommendation 3"],
+                "layout_suggestions": "Layout improvement suggestions",
+                "color_scheme": "Color palette recommendations",
+                "furniture_suggestions": ["Furniture item 1", "Furniture item 2", "Furniture item 3"]
             }}
+
+            Important: All text values in the JSON must be in Korean.
             """
 
-            response = self.model.generate_content(
-                [prompt, img],
-                generation_config=genai_old.GenerationConfig(
-                    response_mime_type="application/json"
-                )
+            # 비동기 처리
+            import asyncio
+            response = await asyncio.to_thread(
+                lambda: self.model.generate_content([prompt, img])
             )
 
             result = json.loads(response.text)
@@ -108,7 +121,8 @@ class GeminiService:
         self,
         image_path: str,
         style: str,
-        style_description: str
+        style_description: str,
+        room_analysis: Optional[Dict[str, Any]] = None
     ) -> dict:
         """인테리어 스타일이 적용된 이미지 생성 (Gemini 2.5 Flash Image 사용)
 
@@ -151,30 +165,73 @@ class GeminiService:
                 "approach": "공간의 가능성을 최대한 이끌어내기"
             })
 
+            # 방 분석 정보 추가 (있는 경우)
+            analysis_context = ""
+            if room_analysis:
+                analysis_context = f"""
+ROOM ANALYSIS (ABSOLUTELY PRESERVE - DO NOT CHANGE):
+- Structure: {room_analysis.get('room_structure', 'N/A')}
+- Layout: {room_analysis.get('spatial_layout', 'N/A')}
+- Building Materials: {room_analysis.get('current_materials', 'N/A')}
+- Key Features: {', '.join(room_analysis.get('key_features', []))}
+- Constraints: {', '.join(room_analysis.get('constraints', []))}
+
+CRITICAL RULES:
+1. NEVER modify room structure (walls, windows, doors, ceiling, floor boundaries)
+2. You CAN change furniture arrangement and items completely
+3. Select furniture that harmonizes with the fixed building materials
+"""
+
             # 이미지 생성 중심 프롬프트 (간결하고 명확하게)
-            prompt = f"""**IMPORTANT: You MUST generate an image. Do not provide text-only response.**
+            prompt = f"""IMPORTANT: You MUST generate an image. Do not provide text-only response.
 
 Transform this room into {style} style interior design.
 
 Style essence: {style_info['essence']}
 Approach: {style_info['approach']}
+{analysis_context}
+IMAGE GENERATION REQUIREMENTS:
 
-**IMAGE GENERATION REQUIREMENTS:**
-1. Keep the same room layout and structure
-2. Apply {style} style to walls, floors, furniture, and decor
-3. Maintain realistic lighting and proportions
-4. Make it look professional and livable
+ROOM STRUCTURE (ABSOLUTELY FORBIDDEN TO CHANGE):
+1. NEVER modify walls, windows, doors positions - keep EXACTLY as original
+2. NEVER change ceiling height, floor boundaries, or room dimensions
+3. NEVER add or remove architectural elements (columns, beams, moldings)
+4. PRESERVE the exact spatial layout and room proportions
+5. FIXED building materials (floor/wall/ceiling finishes) must stay visually consistent
+6. CRITICAL: Keep the SAME camera angle and viewpoint as the original photo
+   - Do NOT change the perspective or shooting angle
+   - Maintain the exact same framing and composition
+   - Keep the same field of view and camera position
 
-**STYLE GUIDELINES:**
-- {style} 스타일의 핵심 특징을 반영하세요
-- 자연스럽고 현실적인 공간으로 만드세요
-- 과도하게 꾸미지 말고 실제 거주 가능한 느낌으로
+FURNITURE & DECOR (FREELY CHANGEABLE):
+7. You MUST change and redesign all furniture to match {style} style
+8. Place specific, identifiable furniture items: desk, chair, shelves, curtains, lighting, rugs, etc.
+9. Each furniture piece must be clearly visible and realistic (suitable for product links)
+10. Ensure furniture complements the FIXED building materials:
+   - Wood floors → select furniture with compatible wood tones
+   - Concrete walls → choose furniture with industrial/modern textures
+   - Create visual harmony between fixed materials and movable furniture
+11. Make furniture look purchasable and realistic (avoid abstract/artistic renderings)
 
-**OUTPUT:**
-- Generate the transformed room image showing {style} style
-- Add a brief analysis in Korean (2-3 sentences) explaining the key changes
+STYLE GUIDELINES:
+- Reflect core characteristics of {style} style
+- Create a natural and realistic space suitable for real living
+- Avoid over-decoration - keep it practical and livable
+- Focus ONLY on furniture/decor changes, NOT architectural changes
 
-**CRITICAL: You MUST return an image. Generate the {style} interior design image now.**
+OUTPUT REQUIREMENTS:
+- Generate the transformed room image with {style} style furniture and decor
+- Keep the SAME room structure (walls, windows, doors, dimensions)
+- Show clear, identifiable furniture pieces that could be sold/linked
+- Ensure visual harmony between fixed building materials and new furniture
+
+CRITICAL FINAL CHECK:
+1. Room structure unchanged? (walls, windows, doors in same positions)
+2. Camera angle and viewpoint identical to original photo?
+3. Furniture clearly visible and realistic?
+4. Building materials and furniture harmonize well?
+
+If YES to all four → Generate the image now.
             """
 
             logger.info(f"Generating {style} image with Gemini 3 Pro")
@@ -198,28 +255,26 @@ Approach: {style_info['approach']}
             filename = f"generated_{uuid.uuid4()}.png"
             output_path = UPLOAD_DIR / filename
 
-            # 응답에서 이미지와 텍스트 추출 (간소화)
+            # 응답에서 이미지 데이터 추출
             parts = response.candidates[0].content.parts if hasattr(response, 'candidates') else response.parts
-            analysis_text = ""
             image_data = None
 
             for part in parts:
-                if hasattr(part, 'text') and part.text:
-                    analysis_text += part.text
-                elif hasattr(part, 'inline_data') and part.inline_data:
+                if hasattr(part, 'inline_data') and part.inline_data:
                     image_data = part.inline_data.data
+                    break
 
             if not image_data:
-                raise Exception(f"이미지 생성 실패. 텍스트만 반환됨: {analysis_text[:100] if analysis_text else 'N/A'}")
+                raise Exception(f"이미지 생성 실패. 이미지 데이터를 찾을 수 없습니다.")
 
-            # 이미지 저장 (raw bytes, base64 없음)
+            # 이미지 저장 (raw bytes)
             image = Image.open(BytesIO(image_data))
             image.save(str(output_path))
 
             logger.info(f"{style} 이미지 생성 성공: {filename}")
             return {
                 'filename': filename,
-                'analysis': analysis_text.strip() if analysis_text else "분석 내용이 생성되지 않았습니다."
+                'analysis': ''
             }
 
         except Exception as e:
